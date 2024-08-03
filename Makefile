@@ -15,6 +15,7 @@ clean: Makefile.coq
 	rm -f Makefile.coq
 	rm -f Makefile.coq.conf
 	rm -f ./c/glue.{c,h} ./c/program.{c,h}
+	rm -rf ./program ./program.dSYM
 
 c:
 	gcc -I ./certicoq/plugin/runtime -lncurses -w -g -o program ./c/main.c ./c/program.c ./c/glue.c ./c/foreign.c

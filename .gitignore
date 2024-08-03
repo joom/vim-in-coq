@@ -46,9 +46,11 @@ time-of-build-both.log
 time-of-build-pretty.log
 
 
-./program
+program
 c/program.c
 c/program.h
 c/glue.c
 c/glue.h
 *.dSYM
+Makefile.coq
+Makefile.coq.conf
