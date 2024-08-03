@@ -1,7 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <ncurses.h>
+#include <string.h>
 #include <values.h>
 #include "glue.h"
-#include <stdio.h>
-#include <ncurses.h>
 
 /* THE FOLLOWING SHOULD EVENTUALLY BE MOVED INTO gc_stack.h */
 /* BEGINFRAME / LIVEPOINTERSn / ENDFRAME
@@ -161,7 +163,7 @@ typedef enum { PURE, BIND, NEWWINDOW, CLOSEWINDOW,
 
 value runM(struct thread_info *tinfo, value action) {
   BEGINFRAME(tinfo, 2)
-  switch (get_prog_C_MI_tag(action)) {
+  switch (get_Vim_Foreign_C_MI_tag(action)) {
     case PURE:
       return get_args(action)[1];
     case BIND: 
@@ -184,7 +186,7 @@ value runM(struct thread_info *tinfo, value action) {
         value w = get_args(action)[0];
         delwin(w);
         endwin();
-        _nc_freeall();
+        /* _nc_freeall(); */
         return make_Coq_Init_Datatypes_unit_tt();
       }
     case MOVECURSOR:

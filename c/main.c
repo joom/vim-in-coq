@@ -3,6 +3,7 @@
 #include <gc_stack.c>
 #include <prim_int63.c>
 #include "glue.h"
+#include "foreign.h"
 
 extern value body(struct thread_info *);
 

@@ -1,22 +1,22 @@
-default: coq c
+all: coq c
 
-.PHONY: default clean coq c
+Makefile.coq: _CoqProject
+	coq_makefile -f _CoqProject -o Makefile.coq
 
-clean:
-	rm -f ./*.*.c
-	rm -f ./*.*.h
-	rm -f ./*.*.o
-	rm -f ./glue.*.*.c
-	rm -f ./glue.*.*.h
-	rm -f ./glue.c
-	rm -f ./glue.h
-	rm -f ./*.vo
-	rm -f ./*.vok
-	rm -f ./*.vos
-	rm -f ./*.glob
-
-coq:
-	coqc prog.v
+coq: Makefile.coq
+	+make -f Makefile.coq all
+	@[ -f ./glue.c ] && mv ./glue.c ./c/ || true
+	@[ -f ./glue.h ] && mv ./glue.h ./c/ || true
+	@[ -f ./program.c ] && mv ./program.c ./c/ || true
+	@[ -f ./program.h ] && mv ./program.h ./c/ || true
+	
+clean: Makefile.coq
+	+make -f Makefile.coq clean
+	rm -f Makefile.coq
+	rm -f Makefile.coq.conf
+	rm -f ./c/glue.{c,h} ./c/program.{c,h}
 
 c:
-	gcc -I ../VeriFFI/certicoq/plugin/runtime -lncurses -w -g -o prog main.c prog.c glue.c prims.c
+	gcc -I ./certicoq/plugin/runtime -lncurses -w -g -o program ./c/main.c ./c/program.c ./c/glue.c ./c/foreign.c
+
+.PHONY: all Makefile.coq coq clean c

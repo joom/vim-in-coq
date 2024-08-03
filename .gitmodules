@@ -1,0 +1,3 @@
+[submodule "certicoq"]
+	path = certicoq
+	url = https://github.com/CertiCoq/certicoq
