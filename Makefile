@@ -15,9 +15,9 @@ clean: Makefile.coq
 	rm -f Makefile.coq
 	rm -f Makefile.coq.conf
 	rm -f ./c/glue.{c,h} ./c/program.{c,h}
-	rm -rf ./program ./program.dSYM
+	rm -rf ./edit ./edit.dSYM
 
 c:
-	gcc -I ./certicoq/plugin/runtime -lncurses -w -g -o program ./c/main.c ./c/program.c ./c/glue.c ./c/foreign.c
+	gcc -I ./certicoq/plugin/runtime -lncurses -w -g -o edit ./c/main.c ./c/program.c ./c/glue.c ./c/foreign.c
 
 .PHONY: all Makefile.coq coq clean c

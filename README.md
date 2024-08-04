@@ -11,5 +11,5 @@ $ make
 ## Run
 
 ```
-./program
+./edit
 ```

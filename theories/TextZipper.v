@@ -14,6 +14,12 @@ Fixpoint split_aux (acc : list ascii) (sep : ascii) (s : list ascii) : list (lis
 Definition split (c : ascii) (s : list ascii) : list (list ascii) :=
   split_aux [] c s.
 
+Fixpoint Nlength {A : Type} (l : list A) : N :=
+  match l with
+  | [] => 0%N
+  | _ :: l' => N.succ (Nlength l')
+  end.
+
 (* TODO implement above and to_left as snoc lists *)
 Record text_zipper : Type :=
  { above : list (list ascii)
@@ -29,8 +35,8 @@ Definition initial_text_zipper : text_zipper :=
    ; below := []
    |}.
 
-Definition cursor_position (tz : text_zipper) : nat * nat :=
-  (length (above tz), length (to_left tz)).
+Definition cursor_position (tz : text_zipper) : N * N :=
+  (Nlength (above tz), Nlength (to_left tz)).
 
 Definition current_line (tz : text_zipper) : list ascii :=
   to_left tz ++ to_right tz.

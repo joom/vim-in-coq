@@ -1,13 +1,20 @@
-Require Import PrimInt63 NArith Ascii String.
+Require Import PrimInt63 NArith Ascii List String.
 
 Require Import Vim.Foreign.
 Require Import Vim.TextZipper.
 
+Import ListNotations.
+
 Variant modes := normal | insert.
+
+Inductive shortcut_token :=
+| number_token : N -> shortcut_token
+| ascii_token : ascii -> shortcut_token.
 
 Record state :=
   { mode : modes
   ; document : text_zipper
+  ; shortcut : list shortcut_token
   }.
 
 Definition render (fuel : nat) (w : C.window) (s : state) : C.M unit :=
@@ -27,8 +34,63 @@ Definition render (fuel : nat) (w : C.window) (s : state) : C.M unit :=
   C.print w (list_ascii_of_string (match mode s with insert => "INSERT" | normal => "NORMAL" end)) ;;
   render_line (lines (document s)) 0%int63 ;;
   let (row, col) := cursor_position (document s) in
-  C.move_cursor w (int_of_nat row) (int_of_nat col) ;;
+  C.move_cursor w (int_of_N row) (int_of_N col) ;;
   C.refresh w.
+
+Definition run_shortcut (s : state) : state :=
+  match mode s , shortcut s with
+  | normal , [ascii_token "a"] =>
+    {| mode := insert
+     ; document := move_right (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "i"] =>
+    {| mode := insert
+     ; document := document s
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "h"] =>
+    {| mode := normal
+     ; document := move_left (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "j"] =>
+    {| mode := normal
+     ; document := move_down (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "k"] =>
+    {| mode := normal
+     ; document := move_up (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "l"] =>
+    {| mode := normal
+     ; document := move_right (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "0"] =>
+    {| mode := normal
+     ; document := move_start_of_line (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "$"] =>
+    {| mode := normal
+     ; document := move_end_of_line (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "O"] =>
+    {| mode := normal
+     ; document := insert_new_line_before (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "o"] =>
+    {| mode := normal
+     ; document := insert_new_line_after (document s)
+     ; shortcut := []
+     |}
+  | _ , _ => s
+  end.
 
 Definition react (c : int) (s : state) : state :=
   match mode s with
@@ -36,60 +98,46 @@ Definition react (c : int) (s : state) : state :=
     if PrimInt63.eqb c 27 (* ESC *)
     then {| mode := normal
           ; document := document s
+          ; shortcut := shortcut s
           |}
-    else if andb (PrimInt63.leb 32 c) (negb (PrimInt63.leb 126 c))
+    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126)
     then {| mode := insert
           ; document := insert_char_left (ascii_of_int c) (document s)
+          ; shortcut := shortcut s
           |}
     else if PrimInt63.eqb 10 c (* enter *)
     then {| mode := insert
           ; document := break_line (document s)
+          ; shortcut := shortcut s
           |}
     else if orb (PrimInt63.eqb c 8 (* backspace *)) (PrimInt63.eqb c 127 (* delete *))
     then {| mode := insert
           ; document := delete_char_right (document s) (* TODO left *)
+          ; shortcut := shortcut s
           |}
     else s
   | normal =>
-    if PrimInt63.eqb c 97 (* a *)
-    then {| mode := insert
-          ; document := move_right (document s)
-          |}
-    else if PrimInt63.eqb c 105 (* i *)
-    then {| mode := insert
+    if PrimInt63.eqb c 27 (* ESC *)
+    then {| mode := normal
           ; document := document s
+          ; shortcut := []
           |}
-    else if PrimInt63.eqb c 104 (* h *)
+    else if andb (PrimInt63.leb 48 c) (PrimInt63.leb c 57) (* between 0 and 9 *)
     then {| mode := normal
-          ; document := move_left (document s)
+          ; document := document s
+          ; shortcut :=
+              match shortcut s with
+              | number_token n :: ts =>
+                shortcut s ++ [number_token (10 * n + N_of_int (PrimInt63.sub c 48))]
+              | ts =>
+                if PrimInt63.eqb c 48 (* 0 *) then shortcut s ++ [ascii_token "0"] else
+                shortcut s ++ [number_token (N_of_int (PrimInt63.sub c 48))]
+              end
           |}
-    else if PrimInt63.eqb c 106 (* j *)
+    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126) (* between space and ~ *)
     then {| mode := normal
-          ; document := move_down (document s)
-          |}
-    else if PrimInt63.eqb c 107 (* k *)
-    then {| mode := normal
-          ; document := move_up (document s)
-          |}
-    else if PrimInt63.eqb c 108 (* l *)
-    then {| mode := normal
-          ; document := move_right (document s)
-          |}
-    else if PrimInt63.eqb c 48 (* 0 *)
-    then {| mode := normal
-          ; document := move_start_of_line (document s)
-          |}
-    else if PrimInt63.eqb c 36 (* $ *)
-    then {| mode := normal
-          ; document := move_end_of_line (document s)
-          |}
-    else if PrimInt63.eqb c 79 (* O *)
-    then {| mode := normal
-          ; document := insert_new_line_before (document s)
-          |}
-    else if PrimInt63.eqb c 111 (* o *)
-    then {| mode := normal
-          ; document := insert_new_line_after (document s)
+          ; document := document s
+          ; shortcut := ascii_token (ascii_of_int c) :: shortcut s
           |}
     else s
   end.
@@ -100,7 +148,7 @@ Fixpoint loop (fuel : nat) (w : C.window) (s : state) : C.M unit :=
     cur <- C.get_cursor w ;;
     let (y, x) := cur in
     c <- C.get_char w ;;
-    let s' := react c s in
+    let s' := run_shortcut (react c s) in
     render fuel' w s' ;;
     loop fuel' w s'
   | _ => C.pure tt
@@ -109,6 +157,7 @@ Fixpoint loop (fuel : nat) (w : C.window) (s : state) : C.M unit :=
 Definition init_state : state :=
   {| mode := normal
    ; document := initial_text_zipper
+   ; shortcut := []
    |}.
 
 Definition program (fuel : nat) : C.M unit :=
