@@ -30,8 +30,10 @@ Definition render (fuel : nat) (w : C.window) (s : state) : C.M unit :=
   C.clear w ;;
   size <- C.get_size w ;;
   let '(row, col) := size in
-  C.move_cursor w (sub row 1) 0 ;;
+  C.move_cursor w (sub row 2) 0 ;;
   C.print w (list_ascii_of_string (match mode s with insert => "INSERT" | normal => "NORMAL" end)) ;;
+  C.move_cursor w (sub row 1) 0 ;;
+  C.print w (List.concat (map (fun x => match x with ascii_token c => [c] | _ => [] end) (shortcut s))) ;;
   render_line (lines (document s)) 0%int63 ;;
   let (row, col) := cursor_position (document s) in
   C.move_cursor w (int_of_N row) (int_of_N col) ;;
@@ -89,6 +91,46 @@ Definition run_shortcut (s : state) : state :=
      ; document := insert_new_line_after (document s)
      ; shortcut := []
      |}
+  | normal , [ascii_token "x"] =>
+    {| mode := normal
+     ; document := delete_char_right (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "d"; ascii_token "d"] =>
+    {| mode := normal
+     ; document := delete_current_line (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "r"; ascii_token c] =>
+    {| mode := normal
+     ; document := replace_char c (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "f"; ascii_token c] =>
+    {| mode := normal
+     ; document := move_next_occurrence_on_line is_space (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "F"; ascii_token c] =>
+    {| mode := normal
+     ; document := move_prev_occurrence_on_line is_space (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "w"] =>
+    {| mode := normal
+     ; document := move_start_of_next_word_on_line (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "b"] =>
+    {| mode := normal
+     ; document := move_start_of_prev_word_on_line (document s)
+     ; shortcut := []
+     |}
+  | normal , [ascii_token "e"] =>
+    {| mode := normal
+     ; document := move_end_of_next_word_on_line (document s)
+     ; shortcut := []
+     |}
   | _ , _ => s
   end.
 
@@ -127,17 +169,23 @@ Definition react (c : int) (s : state) : state :=
           ; document := document s
           ; shortcut :=
               match shortcut s with
+              | [ascii_token "r"] => (* to replace with the char under cursor *)
+                  ascii_token (ascii_of_int c) :: shortcut s
+              | [ascii_token "f"] => (* to find in search *)
+                  ascii_token (ascii_of_int c) :: shortcut s
+              | [ascii_token "F"] => (* to find in search *)
+                  ascii_token (ascii_of_int c) :: shortcut s
               | number_token n :: ts =>
-                shortcut s ++ [number_token (10 * n + N_of_int (PrimInt63.sub c 48))]
+                  shortcut s ++ [number_token (10 * n + N_of_int (PrimInt63.sub c 48))]
               | ts =>
-                if PrimInt63.eqb c 48 (* 0 *) then shortcut s ++ [ascii_token "0"] else
-                shortcut s ++ [number_token (N_of_int (PrimInt63.sub c 48))]
+                  if PrimInt63.eqb c 48 (* 0 *) then shortcut s ++ [ascii_token "0"] else
+                  shortcut s ++ [number_token (N_of_int (PrimInt63.sub c 48))]
               end
           |}
     else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126) (* between space and ~ *)
     then {| mode := normal
           ; document := document s
-          ; shortcut := ascii_token (ascii_of_int c) :: shortcut s
+          ; shortcut := shortcut s ++ [ascii_token (ascii_of_int c)]
           |}
     else s
   end.

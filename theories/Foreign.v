@@ -1,5 +1,5 @@
 From CertiCoq.Plugin Require Import CertiCoq.
-Require Import PrimInt63 NArith Ascii String.
+Require Import PrimInt63 NArith Ascii.
 
 Axiom N_of_int : int -> N.
 Axiom int_of_N : N -> int.
