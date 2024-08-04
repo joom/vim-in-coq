@@ -11,6 +11,8 @@ CertiCoq Register [
 
 Definition ascii_of_int (i : int) : ascii := ascii_of_N (N_of_int i).
 Definition int_of_ascii (a : ascii) : int := int_of_N (N_of_ascii a).
+Definition nat_of_int (i : int) : nat := nat_of_N (N_of_int i).
+Definition int_of_nat (n : nat) : int := int_of_N (N_of_nat n).
 
 Module Type NCurses.
   Parameter M : Type -> Type.
@@ -22,7 +24,7 @@ Module Type NCurses.
   Parameter move_cursor : window -> forall (row : int) (col : int), M unit.
   Parameter get_cursor : window -> M (int * int).
   Parameter get_size : window -> M (int * int).
-  Parameter print : window -> string -> M unit.
+  Parameter print : window -> list ascii -> M unit.
   Parameter refresh : window -> M unit.
   Parameter clear : window -> M unit.
   Parameter get_char : window -> M int.
@@ -39,7 +41,7 @@ Module C <: NCurses.
   | move_cursorI : window -> forall (row : int) (col : int), MI unit
   | get_cursorI : window -> MI (int * int)
   | get_sizeI : window -> MI (int * int)
-  | printI : window -> string -> MI unit
+  | printI : window -> list ascii -> MI unit
   | refreshI : window -> MI unit
   | clearI : window -> MI unit
   | get_charI : window -> MI int.
@@ -52,7 +54,7 @@ Module C <: NCurses.
   Definition move_cursor : window -> forall (row : int) (col : int), M unit := @move_cursorI.
   Definition get_cursor : window -> M (int * int) := @get_cursorI.
   Definition get_size : window -> M (int * int) := @get_sizeI.
-  Definition print : window -> string -> M unit := @printI.
+  Definition print : window -> list ascii -> M unit := @printI.
   Definition refresh : window -> M unit := @refreshI.
   Definition clear : window -> M unit := @clearI.
   Definition get_char : window -> M int := @get_charI.

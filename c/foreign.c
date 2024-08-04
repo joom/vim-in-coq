@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <ncurses.h>
+#include <curses.h>
 #include <string.h>
 #include <values.h>
 #include "glue.h"
@@ -18,8 +18,8 @@ value myfunc(struct thread_info *tinfo, ...other args...) {
   r=LIVEPOINTERSj(tinfo,funcallx,a0,a1,...,aj-1);    [where j<n]
   ...
   LIVEPOINTERSk(tinfo,(funcally,NULL),a0,a1,...,ak-1);    [where k<n]
-  
-  
+
+
   ENDFRAME
 }
 
@@ -39,7 +39,7 @@ value myfunc(struct thread_info *tinfo, ...other args...) {
      It's important that the implementation of ENDFRAME has no
   executable code, because it may be bypassed by a function return.
 */
-  
+
 #define BEGINFRAME(tinfo,n) {{{{{ value __ROOT__[n];   \
    struct stack_frame __FRAME__ = { NULL/*bogus*/, __ROOT__, tinfo->fp }; \
    value __RTEMP__;
@@ -124,19 +124,19 @@ value n_of_int(struct thread_info *tinfo, value t) {
 unsigned char ascii_to_char(value x) {
   unsigned char c = 0;
   for(unsigned int i = 0; i < 8; i++) {
-    unsigned int tag = 
+    unsigned int tag =
       get_Coq_Init_Datatypes_bool_tag(*((value *) *((value *) x) + i));
     c += !tag << i;
   }
   return c;
 }
 
-typedef enum { EMPTYSTRING, STRING } coq_string;
+typedef enum { NIL, CONS } coq_list;
 
-size_t string_value_length(value s) {
+size_t list_value_length(value s) {
   value temp = s;
   size_t i = 0;
-  while(get_Coq_Strings_String_string_tag(temp) == STRING) {
+  while(get_Coq_Init_Datatypes_list_tag(temp) == CONS) {
     temp = *((value *) temp + 1ULL);
     i++;
   }
@@ -146,11 +146,11 @@ size_t string_value_length(value s) {
 char *value_to_string(value s) {
   value temp = s;
   char * result;
-  size_t result_length = string_value_length(s) + 1;
+  size_t result_length = list_value_length(s) + 1;
   result = (char*) malloc(result_length * sizeof(char));
   memset(result, 0, result_length);
 
-  for(int i = 0; get_Coq_Strings_String_string_tag(temp) == STRING; i++) {
+  for(int i = 0; get_Coq_Init_Datatypes_list_tag(temp) == CONS; i++) {
     sprintf(result + i, "%c", ascii_to_char(temp));
     temp = *((value *) temp + 1ULL);
   }
@@ -158,7 +158,7 @@ char *value_to_string(value s) {
   return result;
 }
 
-typedef enum { PURE, BIND, NEWWINDOW, CLOSEWINDOW, 
+typedef enum { PURE, BIND, NEWWINDOW, CLOSEWINDOW,
                MOVECURSOR, GETCURSOR, GETSIZE, PRINT, REFRESH, CLEAR, GETCHAR } M;
 
 value runM(struct thread_info *tinfo, value action) {
@@ -166,7 +166,7 @@ value runM(struct thread_info *tinfo, value action) {
   switch (get_Vim_Foreign_C_MI_tag(action)) {
     case PURE:
       return get_args(action)[1];
-    case BIND: 
+    case BIND:
       {
         value arg0 = get_args(action)[2];
         value arg1 = get_args(action)[3];
@@ -186,7 +186,6 @@ value runM(struct thread_info *tinfo, value action) {
         value w = get_args(action)[0];
         delwin(w);
         endwin();
-        /* _nc_freeall(); */
         return make_Coq_Init_Datatypes_unit_tt();
       }
     case MOVECURSOR:
