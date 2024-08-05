@@ -6,7 +6,7 @@
 #include "glue.h"
 
 /* THE FOLLOWING SHOULD EVENTUALLY BE MOVED INTO gc_stack.h */
-/* BEGINFRAME / LIVEPOINTERSn / ENDFRAME
+/* BEGINFRAME / GCSAVEn / ENDFRAME
   Usage:
 
 value myfunc(struct thread_info *tinfo, ...other args...) {
@@ -15,9 +15,9 @@ value myfunc(struct thread_info *tinfo, ...other args...) {
   ... some more variable declarations ...
 
   ...
-  r=LIVEPOINTERSj(tinfo,funcallx,a0,a1,...,aj-1);    [where j<n]
+  r=GCSAVEj(tinfo,funcallx,a0,a1,...,aj-1);    [where j<n]
   ...
-  LIVEPOINTERSk(tinfo,(funcally,NULL),a0,a1,...,ak-1);    [where k<n]
+  GCSAVEk(tinfo,(funcally,NULL),a0,a1,...,ak-1);    [where k<n]
 
 
   ENDFRAME
@@ -27,11 +27,11 @@ value myfunc(struct thread_info *tinfo, ...other args...) {
   enclosing function.  The number n is the maximum frame size, that is,
   the max number of pointervalues to save across any call within the
   BEGINFRAME/ENDFRAME block.  There may be zero or more calls to
-  LIVEPOINTERS[0,1,2,3,etc] within the block.  In each such call,
+  GCSAVE[0,1,2,3,etc] within the block.  In each such call,
   the "funcall" is some expression that calls a function, returning
   a result of type "value", and the arguments ai are pointer values
   to save across the call.  The result of calling the function will
-  be returned as the result of LIVEPOINTERS; in the pattern shown,
+  be returned as the result of GCSAVE; in the pattern shown,
   it would be put into "r".
      To call a void-returning function f(x), then use  (f(x),(value)NULL)
   as the funcall argument, and in that case you may leave out
@@ -46,28 +46,28 @@ value myfunc(struct thread_info *tinfo, ...other args...) {
 
 #define ENDFRAME }}}}}
 
-#define LIVEPOINTERS0(tinfo, exp) (exp)
+#define GCSAVE0(tinfo, exp) (exp)
 
-#define LIVEPOINTERS1(tinfo, exp, a0) \
+#define GCSAVE1(tinfo, exp, a0) \
   (tinfo->fp= &__FRAME__, __FRAME__.next=__ROOT__+1, \
   __ROOT__[0]=(a0), __RTEMP__=(exp), (a0)=__ROOT__[0], \
   tinfo->fp=__FRAME__.prev, __RTEMP__)
 
-#define LIVEPOINTERS2(tinfo, exp, a0, a1)	\
+#define GCSAVE2(tinfo, exp, a0, a1)	\
   (tinfo->fp= &__FRAME__, __FRAME__.next=__ROOT__+2, \
   __ROOT__[0]=(a0), __ROOT__[1]=(a1),		\
   __RTEMP__=(exp),                              \
   (a0)=__ROOT__[0], (a1)=__ROOT__[1],             \
   tinfo->fp=__FRAME__.prev, __RTEMP__)
 
-#define LIVEPOINTERS3(tinfo, exp, a0, a1, a2)   \
+#define GCSAVE3(tinfo, exp, a0, a1, a2)   \
   (tinfo->fp= &__FRAME__, __FRAME__.next=__ROOT__+3,                       \
   __ROOT__[0]=(a0), __ROOT__[1]=(a1), __ROOT__[2]=(a2),  \
   __RTEMP__=(exp),                                       \
   (a0)=__ROOT__[0], (a1)=__ROOT__[1], (a2)=__ROOT__[2],    \
   tinfo->fp=__FRAME__.prev, __RTEMP__)
 
-#define LIVEPOINTERS4(tinfo, exp, a0, a1, a2, a3)	\
+#define GCSAVE4(tinfo, exp, a0, a1, a2, a3)	\
   (tinfo->fp= &__FRAME__,  __FRAME__.next=__ROOT__+4,  \
   __ROOT__[0]=(a0), __ROOT__[1]=(a1), __ROOT__[2]=(a2), __ROOT__[3]=(a3),  \
   __RTEMP__=(exp),                                       \
@@ -121,7 +121,7 @@ value n_of_int(struct thread_info *tinfo, value t) {
   return alloc_make_Coq_Numbers_BinNums_N_Npos(tinfo, temp);
 }
 
-unsigned char ascii_to_char(value x) {
+unsigned char c_char_of_coq_ascii(value x) {
   unsigned char c = 0;
   for(unsigned int i = 0; i < 8; i++) {
     unsigned int tag =
@@ -133,7 +133,7 @@ unsigned char ascii_to_char(value x) {
 
 typedef enum { NIL, CONS } coq_list;
 
-size_t list_value_length(value s) {
+size_t coq_list_length(value s) {
   value temp = s;
   size_t i = 0;
   while(get_Coq_Init_Datatypes_list_tag(temp) == CONS) {
@@ -143,23 +143,48 @@ size_t list_value_length(value s) {
   return i;
 }
 
-char *value_to_string(value s) {
+char *c_string_of_coq_ascii_list(value s) {
   value temp = s;
   char * result;
-  size_t result_length = list_value_length(s) + 1;
+  size_t result_length = coq_list_length(s) + 1;
   result = (char*) malloc(result_length * sizeof(char));
   memset(result, 0, result_length);
 
   for(int i = 0; get_Coq_Init_Datatypes_list_tag(temp) == CONS; i++) {
-    sprintf(result + i, "%c", ascii_to_char(temp));
+    sprintf(result + i, "%c", c_char_of_coq_ascii(temp));
     temp = *((value *) temp + 1ULL);
   }
 
   return result;
 }
 
+value coq_bool_of_c_bool(_Bool b) {
+  if(b)
+    return make_Coq_Init_Datatypes_bool_true();
+  else
+    return make_Coq_Init_Datatypes_bool_false();
+}
+
+value coq_ascii_of_c_char(struct thread_info *tinfo, unsigned char c) {
+  value v[8];
+  for(unsigned int i = 0; i < 8; i++) {
+    v[i] = coq_bool_of_c_bool(c & (1 << i));
+  }
+  return alloc_make_Coq_Strings_Ascii_ascii_Ascii(tinfo, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+}
+
+value coq_ascii_list_of_c_string(struct thread_info *tinfo, unsigned char *s) {
+  value temp = make_Coq_Init_Datatypes_list_nil();
+  for (unsigned int i = strlen(s); 0 < i; i--) {
+    value c = coq_ascii_of_c_char(tinfo, s[i-1]);
+    temp = alloc_make_Coq_Init_Datatypes_list_cons(tinfo, c, temp);
+  }
+  return temp;
+}
+
 typedef enum { PURE, BIND, NEWWINDOW, CLOSEWINDOW,
-               MOVECURSOR, GETCURSOR, GETSIZE, PRINT, REFRESH, CLEAR, GETCHAR } M;
+               MOVECURSOR, GETCURSOR, GETSIZE, PRINT, REFRESH, CLEAR, GETCHAR,
+               READ_FILE, WRITE_TO_FILE } M;
 
 value runM(struct thread_info *tinfo, value action) {
   BEGINFRAME(tinfo, 2)
@@ -170,8 +195,8 @@ value runM(struct thread_info *tinfo, value action) {
       {
         value arg0 = get_args(action)[2];
         value arg1 = get_args(action)[3];
-        value temp = LIVEPOINTERS2(tinfo, runM(tinfo, arg0), arg0, arg1);
-        temp = LIVEPOINTERS2(tinfo, call(tinfo, arg1, temp), arg1, temp);
+        value temp = GCSAVE2(tinfo, runM(tinfo, arg0), arg0, arg1);
+        temp = GCSAVE2(tinfo, call(tinfo, arg1, temp), arg1, temp);
         return runM(tinfo, temp);
       }
     case NEWWINDOW:
@@ -213,7 +238,7 @@ value runM(struct thread_info *tinfo, value action) {
     case PRINT:
       {
         value w = get_args(action)[0];
-        char *s = value_to_string(get_args(action)[1]);
+        char *s = c_string_of_coq_ascii_list(get_args(action)[1]);
         waddstr(w, s);
         free(s);
         return make_Coq_Init_Datatypes_unit_tt();
@@ -234,6 +259,19 @@ value runM(struct thread_info *tinfo, value action) {
       {
         value w = get_args(action)[0];
         return Val_long(wgetch(w));
+      }
+    case READ_FILE:
+      {
+        value file_name = get_args(action)[0];
+        // TODO
+        return make_Coq_Init_Datatypes_list_nil();
+      }
+    case WRITE_TO_FILE:
+      {
+        value file_name = get_args(action)[0];
+        value content = get_args(action)[1];
+        // TODO
+        return make_Coq_Init_Datatypes_unit_tt();
       }
     default:
       return 0;

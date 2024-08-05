@@ -28,6 +28,8 @@ Module Type NCurses.
   Parameter refresh : window -> M unit.
   Parameter clear : window -> M unit.
   Parameter get_char : window -> M int.
+  Parameter read_file : list ascii -> M (list ascii).
+  Parameter write_to_file : forall (file_name content : list ascii), M unit.
 End NCurses.
 
 Module C <: NCurses.
@@ -44,7 +46,9 @@ Module C <: NCurses.
   | printI : window -> list ascii -> MI unit
   | refreshI : window -> MI unit
   | clearI : window -> MI unit
-  | get_charI : window -> MI int.
+  | get_charI : window -> MI int
+  | read_fileI : list ascii -> MI (list ascii)
+  | write_to_fileI : forall (file_name content : list ascii), MI unit.
 
   Definition M := MI.
   Definition pure : forall {A}, A -> M A := @pureI.
@@ -58,6 +62,8 @@ Module C <: NCurses.
   Definition refresh : window -> M unit := @refreshI.
   Definition clear : window -> M unit := @clearI.
   Definition get_char : window -> M int := @get_charI.
+  Definition read_file : list ascii -> M (list ascii) := @read_fileI.
+  Definition write_to_file : forall (file_name content : list ascii), M unit := @write_to_fileI.
 End C.
 
 Notation "e1 ;; e2" :=

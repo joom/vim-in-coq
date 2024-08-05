@@ -46,7 +46,7 @@ time-of-build-both.log
 time-of-build-pretty.log
 
 
-program
+edit
 c/program.c
 c/program.h
 c/glue.c
