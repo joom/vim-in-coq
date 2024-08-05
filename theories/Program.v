@@ -1,6 +1,7 @@
 Require Import PrimInt63 NArith Ascii List.
 
 Require Import Vim.Helpers
+               Vim.Errors
                Vim.Foreign
                Vim.TextZipper.
 
@@ -37,35 +38,72 @@ Record state :=
   { mode : edit_mode
   ; document : text_zipper
   ; shortcut : list shortcut_token
+  ; has_changes : bool
   ; current_file : option (list ascii)
+  ; current_error : option error
   }.
 
-Definition init_state : state :=
+Definition initial_state : state :=
   {| mode := normal
    ; document := initial_text_zipper
    ; shortcut := []
+   ; has_changes := false
    ; current_file := None
+   ; current_error := None
    |}.
 
 Definition set_mode (new : edit_mode) (s : state) : state :=
   {| mode := new
    ; document := document s
    ; shortcut := shortcut s
+   ; has_changes := false
    ; current_file := current_file s
+   ; current_error := current_error s
    |}.
 
 Definition set_document (new : text_zipper) (s : state) : state :=
   {| mode := mode s
    ; document := new
    ; shortcut := shortcut s
+   ; has_changes := false
    ; current_file := current_file s
+   ; current_error := current_error s
    |}.
 
 Definition set_shortcut (new : list shortcut_token) (s : state) : state :=
   {| mode := mode s
    ; document := document s
    ; shortcut := new
+   ; has_changes := false
    ; current_file := current_file s
+   ; current_error := current_error s
+   |}.
+
+Definition set_has_changes (new : bool) (s : state) : state :=
+  {| mode := mode s
+   ; document := document s
+   ; shortcut := shortcut s
+   ; has_changes := new
+   ; current_file := current_file s
+   ; current_error := current_error s
+   |}.
+
+Definition set_current_file (new : option (list ascii)) (s : state) : state :=
+  {| mode := mode s
+   ; document := document s
+   ; shortcut := shortcut s
+   ; has_changes := has_changes s
+   ; current_file := new
+   ; current_error := current_error s
+   |}.
+
+Definition set_current_error (new : option error) (s : state) : state :=
+  {| mode := mode s
+   ; document := document s
+   ; shortcut := shortcut s
+   ; has_changes := has_changes s
+   ; current_file := current_file s
+   ; current_error := new
    |}.
 
 Definition shortcut_view (s : state) : nat * list shortcut_token :=
@@ -236,26 +274,21 @@ Definition main (args : list (list ascii)) : C.M unit :=
   match args with
   | [] =>
     w <- C.new_window ;;
-    render w init_state ;;
-    loop w init_state ;;
+    render w initial_state ;;
+    loop w initial_state ;;
     C.close_window w
   | file_name :: [] =>
     content <- C.read_file file_name ;;
-    let s :=
-      {| mode := normal
-       ; document :=
-         match split newline content with
-         | [] => initial_text_zipper
-         | line :: lines =>
-           {| above := []
-            ; to_left := []
-            ; to_right := line
-            ; below := lines
-            |}
-         end
-      ; shortcut := []
-      ; current_file := Some file_name
-      |} in
+    let d := match split newline content with
+             | [] => initial_text_zipper
+             | line :: lines =>
+               {| above := []
+                ; to_left := []
+                ; to_right := line
+                ; below := lines
+               |}
+             end in
+    let s := set_current_file (Some file_name) (set_document d initial_state) in
     w <- C.new_window ;;
     render w s ;;
     loop w s ;;
