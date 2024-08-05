@@ -17,7 +17,7 @@ Record state :=
   ; shortcut : list shortcut_token
   }.
 
-Definition render (fuel : nat) (w : C.window) (s : state) : C.M unit :=
+Definition render (w : C.window) (s : state) : C.M unit :=
   let fix render_line (l : list (list ascii)) (row : int) : C.M unit :=
     match l with
     | nil =>
@@ -190,17 +190,13 @@ Definition react (c : int) (s : state) : state :=
     else s
   end.
 
-Fixpoint loop (fuel : nat) (w : C.window) (s : state) : C.M unit :=
-  match fuel with
-  | S fuel' =>
-    cur <- C.get_cursor w ;;
-    let (y, x) := cur in
-    c <- C.get_char w ;;
-    let s' := run_shortcut (react c s) in
-    render fuel' w s' ;;
-    loop fuel' w s'
-  | _ => C.pure tt
-  end.
+CoFixpoint loop (w : C.window) (s : state) : C.M unit :=
+  cur <- C.get_cursor w ;;
+  let (y, x) := cur in
+  c <- C.get_char w ;;
+  let s' := run_shortcut (react c s) in
+  render w s' ;;
+  loop w s'.
 
 Definition init_state : state :=
   {| mode := normal
@@ -208,8 +204,8 @@ Definition init_state : state :=
    ; shortcut := []
    |}.
 
-Definition program (fuel : nat) : C.M unit :=
+Definition main : C.M unit :=
   w <- C.new_window ;;
-  render fuel w init_state ;;
-  loop fuel w init_state ;;
+  render w init_state ;;
+  loop w init_state ;;
   C.close_window w.

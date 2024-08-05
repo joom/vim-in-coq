@@ -188,6 +188,8 @@ typedef enum { PURE, BIND, NEWWINDOW, CLOSEWINDOW,
 
 value runM(struct thread_info *tinfo, value action) {
   BEGINFRAME(tinfo, 2)
+  // call the function with a unit to run the thunk from the coinductive
+  action = GCSAVE1(tinfo, call(tinfo, action, make_Coq_Init_Datatypes_unit_tt()), action);
   switch (get_Vim_Foreign_C_MI_tag(action)) {
     case PURE:
       return get_args(action)[1];

@@ -35,7 +35,7 @@ End NCurses.
 Module C <: NCurses.
   Axiom window : Type.
 
-  Inductive MI : Type -> Type :=
+  CoInductive MI : Type -> Type :=
   | pureI : forall {A}, A -> MI A
   | bindI : forall {A B}, MI A -> (A -> MI B) -> MI B
   | new_windowI : MI window
