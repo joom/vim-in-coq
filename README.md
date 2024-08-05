@@ -1,5 +1,5 @@
 # vim-in-coq
-A rudimentary Vim clone in Coq, compiled with CertiCoq and using ncurses via FFI.
+A rudimentary Vim clone in Coq, compiled with CertiCoq and using ncurses via the C FFI.
 
 ## Build
 
@@ -10,6 +10,10 @@ $ make
 
 ## Run
 
+You can then run it on any file:
+
 ```
-./edit
+./edit README.md
 ```
+
+Keep in mind that non-ASCII characters will not appear correctly.

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <curses.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <values.h>
 #include "glue.h"
 
@@ -123,9 +124,9 @@ value n_of_int(struct thread_info *tinfo, value t) {
 
 unsigned char c_char_of_coq_ascii(value x) {
   unsigned char c = 0;
-  for(unsigned int i = 0; i < 8; i++) {
+  for (unsigned int i = 0; i < 8; i++) {
     unsigned int tag =
-      get_Coq_Init_Datatypes_bool_tag(*((value *) *((value *) x) + i));
+      get_Coq_Init_Datatypes_bool_tag(get_args(get_args(x)[0])[i]);
     c += !tag << i;
   }
   return c;
@@ -136,8 +137,8 @@ typedef enum { NIL, CONS } coq_list;
 size_t coq_list_length(value s) {
   value temp = s;
   size_t i = 0;
-  while(get_Coq_Init_Datatypes_list_tag(temp) == CONS) {
-    temp = *((value *) temp + 1ULL);
+  while (get_Coq_Init_Datatypes_list_tag(temp) == CONS) {
+    temp = get_args(temp)[1];
     i++;
   }
   return i;
@@ -150,16 +151,16 @@ char *c_string_of_coq_ascii_list(value s) {
   result = (char*) malloc(result_length * sizeof(char));
   memset(result, 0, result_length);
 
-  for(int i = 0; get_Coq_Init_Datatypes_list_tag(temp) == CONS; i++) {
+  for (int i = 0; get_Coq_Init_Datatypes_list_tag(temp) == CONS; i++) {
     sprintf(result + i, "%c", c_char_of_coq_ascii(temp));
-    temp = *((value *) temp + 1ULL);
+    temp = get_args(temp)[1];
   }
 
   return result;
 }
 
 value coq_bool_of_c_bool(_Bool b) {
-  if(b)
+  if (b)
     return make_Coq_Init_Datatypes_bool_true();
   else
     return make_Coq_Init_Datatypes_bool_false();
@@ -167,7 +168,7 @@ value coq_bool_of_c_bool(_Bool b) {
 
 value coq_ascii_of_c_char(struct thread_info *tinfo, unsigned char c) {
   value v[8];
-  for(unsigned int i = 0; i < 8; i++) {
+  for (unsigned int i = 0; i < 8; i++) {
     v[i] = coq_bool_of_c_bool(c & (1 << i));
   }
   return alloc_make_Coq_Strings_Ascii_ascii_Ascii(tinfo, v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
@@ -182,7 +183,32 @@ value coq_ascii_list_of_c_string(struct thread_info *tinfo, unsigned char *s) {
   return temp;
 }
 
-typedef enum { PURE, BIND, NEWWINDOW, CLOSEWINDOW,
+value read_file_into_coq_ascii_list(struct thread_info *tinfo, char *file_name) {
+  struct stat st;
+  FILE *fp = fopen(file_name, "r");
+  fstat(fileno(fp), &st);
+  fseek(fp, -1, SEEK_END); // start from the end
+  value temp = make_Coq_Init_Datatypes_list_nil();
+  for (int p = st.st_size; p > 0; p--) {
+    char c = fgetc(fp);
+    fseek(fp, -2, SEEK_CUR); // read backwards
+    temp = alloc_make_Coq_Init_Datatypes_list_cons(tinfo, coq_ascii_of_c_char(tinfo, c), temp);
+  }
+  fclose(fp);
+  return temp;
+}
+
+value write_file_from_coq_ascii_list(char *file_name, value content) {
+  FILE *fp = fopen(file_name, "w");
+  char *s = c_string_of_coq_ascii_list(content);
+  fputs(s, fp);
+  // also possible to write it character by character using fputc
+  fclose(fp);
+  free(s);
+  return make_Coq_Init_Datatypes_unit_tt();
+}
+
+typedef enum { PURE, BIND, EXIT, NEWWINDOW, CLOSEWINDOW,
                MOVECURSOR, GETCURSOR, GETSIZE, PRINT, REFRESH, CLEAR, GETCHAR,
                READ_FILE, WRITE_TO_FILE } M;
 
@@ -193,90 +219,98 @@ value runM(struct thread_info *tinfo, value action) {
   switch (get_Vim_Foreign_C_MI_tag(action)) {
     case PURE:
       return get_args(action)[1];
-    case BIND:
-      {
-        value arg0 = get_args(action)[2];
-        value arg1 = get_args(action)[3];
-        value temp = GCSAVE2(tinfo, runM(tinfo, arg0), arg0, arg1);
-        temp = GCSAVE2(tinfo, call(tinfo, arg1, temp), arg1, temp);
-        return runM(tinfo, temp);
+    case BIND: {
+      value arg0 = get_args(action)[2];
+      value arg1 = get_args(action)[3];
+      value temp = GCSAVE2(tinfo, runM(tinfo, arg0), arg0, arg1);
+      temp = GCSAVE2(tinfo, call(tinfo, arg1, temp), arg1, temp);
+      return runM(tinfo, temp);
+    }
+    case EXIT: {
+      value arg0 = get_args(action)[0];
+      if (arg0 == make_Vim_Foreign_exit_status_success()) {
+        exit(EXIT_SUCCESS);
+      } else {
+        exit(EXIT_FAILURE);
       }
-    case NEWWINDOW:
-      {
-        value w = (value) initscr();
-        noecho();
-        /* curs_set(0); */
-        return w;
-      }
-    case CLOSEWINDOW:
-      {
-        value w = get_args(action)[0];
-        delwin(w);
-        endwin();
-        return make_Coq_Init_Datatypes_unit_tt();
-      }
-    case MOVECURSOR:
-      {
-        value w = get_args(action)[0];
-        value arg0 = get_args(action)[1];
-        value arg1 = get_args(action)[2];
-        wmove(w, Unsigned_long_val(arg0), Unsigned_long_val(arg1));
-        return make_Coq_Init_Datatypes_unit_tt();
-      }
-    case GETCURSOR:
-      {
-        value w = get_args(action)[0];
-        value y = Val_long(getcury(w));
-        value x = Val_long(getcurx(w));
-        return alloc_make_Coq_Init_Datatypes_prod_pair(tinfo, y, x);
-      }
-    case GETSIZE:
-      {
-        value w = get_args(action)[0];
-        value y = Val_long(getmaxy(w));
-        value x = Val_long(getmaxx(w));
-        return alloc_make_Coq_Init_Datatypes_prod_pair(tinfo, y, x);
-      }
-    case PRINT:
-      {
-        value w = get_args(action)[0];
-        char *s = c_string_of_coq_ascii_list(get_args(action)[1]);
-        waddstr(w, s);
-        free(s);
-        return make_Coq_Init_Datatypes_unit_tt();
-      }
-    case REFRESH:
-      {
-        value w = get_args(action)[0];
-        wrefresh(w);
-        return make_Coq_Init_Datatypes_unit_tt();
-      }
-    case CLEAR:
-      {
-        value w = get_args(action)[0];
-        wclear(w);
-        return make_Coq_Init_Datatypes_unit_tt();
-      }
-    case GETCHAR:
-      {
-        value w = get_args(action)[0];
-        return Val_long(wgetch(w));
-      }
-    case READ_FILE:
-      {
-        value file_name = get_args(action)[0];
-        // TODO
-        return make_Coq_Init_Datatypes_list_nil();
-      }
-    case WRITE_TO_FILE:
-      {
-        value file_name = get_args(action)[0];
-        value content = get_args(action)[1];
-        // TODO
-        return make_Coq_Init_Datatypes_unit_tt();
-      }
-    default:
-      return 0;
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case NEWWINDOW: {
+      value w = (value) initscr();
+      noecho();
+      /* curs_set(0); */
+      return w;
+    }
+    case CLOSEWINDOW: {
+      value w = get_args(action)[0];
+      delwin(w);
+      endwin();
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case MOVECURSOR: {
+      value w = get_args(action)[0];
+      value arg0 = get_args(action)[1];
+      value arg1 = get_args(action)[2];
+      wmove(w, Unsigned_long_val(arg0), Unsigned_long_val(arg1));
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case GETCURSOR: {
+      value w = get_args(action)[0];
+      value y = Val_long(getcury(w));
+      value x = Val_long(getcurx(w));
+      return alloc_make_Coq_Init_Datatypes_prod_pair(tinfo, y, x);
+    }
+    case GETSIZE: {
+      value w = get_args(action)[0];
+      value y = Val_long(getmaxy(w));
+      value x = Val_long(getmaxx(w));
+      return alloc_make_Coq_Init_Datatypes_prod_pair(tinfo, y, x);
+    }
+    case PRINT: {
+      value w = get_args(action)[0];
+      char *s = c_string_of_coq_ascii_list(get_args(action)[1]);
+      waddstr(w, s);
+      free(s);
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case REFRESH: {
+      value w = get_args(action)[0];
+      wrefresh(w);
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case CLEAR: {
+      value w = get_args(action)[0];
+      wclear(w);
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case GETCHAR: {
+      value w = get_args(action)[0];
+      return Val_long(wgetch(w));
+    }
+    case READ_FILE: {
+      value file_name = get_args(action)[0];
+      char *c_file_name = c_string_of_coq_ascii_list(file_name);
+      value res = read_file_into_coq_ascii_list(tinfo, c_file_name);
+      free(c_file_name);
+      return res;
+    }
+    case WRITE_TO_FILE: {
+      value file_name = get_args(action)[0];
+      value content = get_args(action)[1];
+      char *c_file_name = c_string_of_coq_ascii_list(file_name);
+      value res = write_file_from_coq_ascii_list(c_file_name, content);
+      free(c_file_name);
+      return res;
+    }
+    default: return 0;
   }
   ENDFRAME
+}
+
+value coq_argv_of_c_argv(struct thread_info *tinfo, int argc, char *argv[]) {
+  value temp = make_Coq_Init_Datatypes_list_nil();
+  for (int i = argc - 1; i >= 1; i--) {
+    temp = alloc_make_Coq_Init_Datatypes_list_cons(tinfo, coq_ascii_list_of_c_string(tinfo, argv[i]), temp);
+  }
+  return temp;
 }

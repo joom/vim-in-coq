@@ -14,10 +14,15 @@ Definition int_of_ascii (a : ascii) : int := int_of_N (N_of_ascii a).
 Definition nat_of_int (i : int) : nat := nat_of_N (N_of_int i).
 Definition int_of_nat (n : nat) : int := int_of_N (N_of_nat n).
 
-Module Type NCurses.
+Inductive exit_status :=
+| success : exit_status
+| failure : exit_status.
+
+Module Type Effects.
   Parameter M : Type -> Type.
   Parameter pure : forall {A}, A -> M A.
   Parameter bind : forall {A B}, M A -> (A -> M B) -> M B.
+  Parameter exit : exit_status -> M unit.
   Parameter window : Type.
   Parameter new_window : M window.
   Parameter close_window : window -> M unit.
@@ -30,14 +35,15 @@ Module Type NCurses.
   Parameter get_char : window -> M int.
   Parameter read_file : list ascii -> M (list ascii).
   Parameter write_to_file : forall (file_name content : list ascii), M unit.
-End NCurses.
+End Effects.
 
-Module C <: NCurses.
+Module C <: Effects.
   Axiom window : Type.
 
   CoInductive MI : Type -> Type :=
   | pureI : forall {A}, A -> MI A
   | bindI : forall {A B}, MI A -> (A -> MI B) -> MI B
+  | exitI : exit_status -> MI unit
   | new_windowI : MI window
   | close_windowI : window -> MI unit
   | move_cursorI : window -> forall (row : int) (col : int), MI unit
@@ -53,6 +59,7 @@ Module C <: NCurses.
   Definition M := MI.
   Definition pure : forall {A}, A -> M A := @pureI.
   Definition bind : forall {A B}, M A -> (A -> M B) -> M B := @bindI.
+  Definition exit : exit_status -> M unit := @exitI.
   Definition new_window : M window := @new_windowI.
   Definition close_window : window -> M unit := @close_windowI.
   Definition move_cursor : window -> forall (row : int) (col : int), M unit := @move_cursorI.

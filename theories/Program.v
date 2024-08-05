@@ -1,28 +1,209 @@
-Require Import PrimInt63 NArith Ascii List String.
+Require Import PrimInt63 NArith Ascii List.
 
-Require Import Vim.Foreign.
-Require Import Vim.TextZipper.
+Require Import Vim.Helpers
+               Vim.Foreign
+               Vim.TextZipper.
 
 Import ListNotations.
+Open Scope char_scope.
 
-Variant modes := normal | insert.
+Variant edit_mode :=
+| normal : edit_mode
+| insert : edit_mode
+| visual : forall (start_point : text_zipper), edit_mode
+| command : list ascii -> edit_mode
+| replace : edit_mode.
+
+Definition string_of_edit_mode (m : edit_mode) : list ascii :=
+  match m with
+  | normal => ["N";"O";"R";"M";"A";"L"]
+  | insert => ["I";"N";"S";"E";"R";"T"]
+  | visual _ => ["V";"I";"S";"U";"A";"L"]
+  | command _ => ["C";"O";"M";"M";"A";"N";"D"]
+  | replace => ["R";"E";"P";"L";"A";"C";"E"]
+  end.
 
 Inductive shortcut_token :=
-| number_token : N -> shortcut_token
+| number_token : nat -> shortcut_token
 | ascii_token : ascii -> shortcut_token.
 
+Definition string_of_shortcut_tokens (l : list shortcut_token) : list ascii :=
+  List.concat (map (fun x => match x with
+                             | ascii_token c => [c]
+                             | number_token n => string_of_nat n
+                             end) l).
+
 Record state :=
-  { mode : modes
+  { mode : edit_mode
   ; document : text_zipper
   ; shortcut : list shortcut_token
+  ; current_file : option (list ascii)
   }.
+
+Definition init_state : state :=
+  {| mode := normal
+   ; document := initial_text_zipper
+   ; shortcut := []
+   ; current_file := None
+   |}.
+
+Definition set_mode (new : edit_mode) (s : state) : state :=
+  {| mode := new
+   ; document := document s
+   ; shortcut := shortcut s
+   ; current_file := current_file s
+   |}.
+
+Definition set_document (new : text_zipper) (s : state) : state :=
+  {| mode := mode s
+   ; document := new
+   ; shortcut := shortcut s
+   ; current_file := current_file s
+   |}.
+
+Definition set_shortcut (new : list shortcut_token) (s : state) : state :=
+  {| mode := mode s
+   ; document := document s
+   ; shortcut := new
+   ; current_file := current_file s
+   |}.
+
+Definition shortcut_view (s : state) : nat * list shortcut_token :=
+  match shortcut s with
+  | number_token n :: l => (n, l)
+  | l => (1, l)
+  end.
+
+Definition run_shortcut (s : state) : state :=
+  match mode s , shortcut_view s with
+  | normal , (n , [ascii_token ":"]) =>
+    set_shortcut [] (set_mode (command []) s)
+  | normal , (n , [ascii_token "a"]) =>
+    set_shortcut [] (set_mode insert (set_document (move_right (document s)) s))
+  | normal , (n , [ascii_token "i"]) =>
+    set_shortcut [] (set_mode insert (set_document (document s) s))
+  | normal , (n , [ascii_token "h"]) =>
+    set_shortcut [] (set_document (apply n move_left (document s)) s)
+  | normal , (n , [ascii_token "j"]) =>
+    set_shortcut [] (set_document (apply n move_down (document s)) s)
+  | normal , (n , [ascii_token "k"]) =>
+    set_shortcut [] (set_document (apply n move_up (document s)) s)
+  | normal , (n , [ascii_token "l"]) =>
+    set_shortcut [] (set_document (apply n move_right (document s)) s)
+  | normal , (n , [ascii_token "0"]) =>
+    set_shortcut [] (set_document (move_start_of_line (document s)) s)
+  | normal , (n , [ascii_token "$"]) =>
+    set_shortcut [] (set_document (move_end_of_line (document s)) s)
+  | normal , (n , [ascii_token "O"]) =>
+    set_shortcut [] (set_mode insert (set_document (insert_new_line_before (document s)) s))
+  | normal , (n , [ascii_token "o"]) =>
+    set_shortcut [] (set_mode insert (set_document (insert_new_line_after (document s)) s))
+  | normal , (n , [ascii_token "x"]) =>
+    set_shortcut [] (set_document (apply n delete_char_right (document s)) s)
+  | normal , (n , [ascii_token "d"; ascii_token "d"]) =>
+    set_shortcut [] (set_document (apply n delete_current_line (document s)) s)
+  | normal , (n , [ascii_token "r"; ascii_token c]) =>
+    set_shortcut [] (set_document (apply_with_sep n move_right (replace_char c) (document s)) s)
+  | normal , (n , [ascii_token "R"]) =>
+    set_shortcut [] (set_mode replace s)
+  | normal , (n , [ascii_token "f"; ascii_token c]) =>
+    set_shortcut [] (set_document (move_next_occurrence_on_line (Ascii.eqb c) (document s)) s)
+  | normal , (n , [ascii_token "F"; ascii_token c]) =>
+    set_shortcut [] (set_document (move_prev_occurrence_on_line (Ascii.eqb c) (document s)) s)
+  | normal , (n , [ascii_token "w"]) =>
+    set_shortcut [] (set_document (apply n move_start_of_next_word_on_line (document s)) s)
+  | normal , (n , [ascii_token "b"]) =>
+    set_shortcut [] (set_document (apply n move_start_of_prev_word_on_line (document s)) s)
+  | normal , (n , [ascii_token "e"]) =>
+    set_shortcut [] (set_document (apply n move_end_of_next_word_on_line (document s)) s)
+  | _ , (_ , _) => s
+  end.
+
+Definition save_file (s : state) : C.M unit :=
+  match current_file s with
+  | None => C.pure tt
+  | Some file_name =>
+    C.write_to_file file_name (all_content (document s)) ;;
+    C.pure tt
+  end.
+
+Definition exit (w : C.window) : C.M unit :=
+  C.close_window w ;; C.exit success.
+
+Definition run_command (w : C.window) (s : state) : C.M state :=
+  match mode s with
+  | command ["q"] =>
+      exit w ;;
+      C.pure s
+  | command ["w"] =>
+      save_file s ;;
+      C.pure s
+  | command ["w";"q"] =>
+      save_file s ;;
+      exit w ;;
+      C.pure s
+  | _ => C.pure s
+  end.
+
+Definition react (c : int) (w : C.window) (s : state) : C.M state :=
+  match mode s with
+  | insert =>
+    if PrimInt63.eqb c 27 (* ESC *)
+    then C.pure (set_mode normal s)
+    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126)
+    then C.pure (set_document (insert_char_left (ascii_of_int c) (document s)) s)
+    else if PrimInt63.eqb 10 c (* enter *)
+    then C.pure (set_mode insert (set_document (break_line (document s)) s))
+    else if orb (PrimInt63.eqb c 8 (* backspace *)) (PrimInt63.eqb c 127 (* delete *))
+    then C.pure (set_mode insert (set_document (delete_char_left (document s)) s))
+    else C.pure s
+  | normal =>
+    if PrimInt63.eqb c 27 (* ESC *)
+    then C.pure (set_shortcut [] s)
+    else if andb (PrimInt63.leb 48 c) (PrimInt63.leb c 57) (* between 0 and 9 *)
+    then C.pure (set_shortcut (
+      match shortcut s with
+      | [ascii_token "r"] => (* to replace with the char under cursor *)
+          ascii_token (ascii_of_int c) :: shortcut s
+      | [ascii_token "f"] => (* to find in search *)
+          ascii_token (ascii_of_int c) :: shortcut s
+      | [ascii_token "F"] => (* to find in search *)
+          ascii_token (ascii_of_int c) :: shortcut s
+      | [number_token n] =>
+          [number_token (10 * n + nat_of_int (PrimInt63.sub c 48))]
+      | ts =>
+          if PrimInt63.eqb c 48 (* 0 *) then shortcut s ++ [ascii_token "0"] else
+          ts ++ [number_token (nat_of_int (PrimInt63.sub c 48))]
+      end) s)
+    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126) (* between space and ~ *)
+    then C.pure (set_shortcut (shortcut s ++ [ascii_token (ascii_of_int c)]) s)
+    else C.pure s
+  | visual start_point => C.pure s
+  | command l =>
+    if PrimInt63.eqb 10 c (* enter *)
+    then s' <- run_command w s ;;
+         C.pure (set_mode normal s')
+    else if PrimInt63.eqb 27 c (* ESC *)
+    then C.pure (set_mode normal s)
+    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126)
+    then C.pure (set_mode (command (l ++ [ascii_of_int c])) s)
+    else C.pure s
+  | replace =>
+    if PrimInt63.eqb c 27 (* ESC *)
+    then C.pure (set_mode normal s)
+    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126)
+    then C.pure (set_document (insert_char_left (ascii_of_int c) (delete_char_right (document s))) s)
+    else if orb (PrimInt63.eqb c 8 (* backspace *)) (PrimInt63.eqb c 127 (* delete *))
+    then C.pure (set_document (move_left (document s)) s)
+    else C.pure s
+  end.
 
 Definition render (w : C.window) (s : state) : C.M unit :=
   let fix render_line (l : list (list ascii)) (row : int) : C.M unit :=
     match l with
-    | nil =>
+    | [] =>
       C.pure tt
-    | cons x xs =>
+    | x :: xs =>
       C.move_cursor w row 0 ;;
       C.print w x ;;
       render_line xs (add 1 row)
@@ -31,181 +212,53 @@ Definition render (w : C.window) (s : state) : C.M unit :=
   size <- C.get_size w ;;
   let '(row, col) := size in
   C.move_cursor w (sub row 2) 0 ;;
-  C.print w (list_ascii_of_string (match mode s with insert => "INSERT" | normal => "NORMAL" end)) ;;
+  C.print w (string_of_edit_mode (mode s)) ;;
   C.move_cursor w (sub row 1) 0 ;;
-  C.print w (List.concat (map (fun x => match x with ascii_token c => [c] | _ => [] end) (shortcut s))) ;;
+  match mode s with
+  | command l => C.print w (":" :: l)
+  | _ => C.print w (string_of_shortcut_tokens (shortcut s))
+  end ;;
   render_line (lines (document s)) 0%int63 ;;
   let (row, col) := cursor_position (document s) in
   C.move_cursor w (int_of_N row) (int_of_N col) ;;
   C.refresh w.
 
-Definition run_shortcut (s : state) : state :=
-  match mode s , shortcut s with
-  | normal , [ascii_token "a"] =>
-    {| mode := insert
-     ; document := move_right (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "i"] =>
-    {| mode := insert
-     ; document := document s
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "h"] =>
-    {| mode := normal
-     ; document := move_left (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "j"] =>
-    {| mode := normal
-     ; document := move_down (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "k"] =>
-    {| mode := normal
-     ; document := move_up (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "l"] =>
-    {| mode := normal
-     ; document := move_right (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "0"] =>
-    {| mode := normal
-     ; document := move_start_of_line (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "$"] =>
-    {| mode := normal
-     ; document := move_end_of_line (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "O"] =>
-    {| mode := normal
-     ; document := insert_new_line_before (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "o"] =>
-    {| mode := normal
-     ; document := insert_new_line_after (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "x"] =>
-    {| mode := normal
-     ; document := delete_char_right (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "d"; ascii_token "d"] =>
-    {| mode := normal
-     ; document := delete_current_line (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "r"; ascii_token c] =>
-    {| mode := normal
-     ; document := replace_char c (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "f"; ascii_token c] =>
-    {| mode := normal
-     ; document := move_next_occurrence_on_line is_space (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "F"; ascii_token c] =>
-    {| mode := normal
-     ; document := move_prev_occurrence_on_line is_space (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "w"] =>
-    {| mode := normal
-     ; document := move_start_of_next_word_on_line (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "b"] =>
-    {| mode := normal
-     ; document := move_start_of_prev_word_on_line (document s)
-     ; shortcut := []
-     |}
-  | normal , [ascii_token "e"] =>
-    {| mode := normal
-     ; document := move_end_of_next_word_on_line (document s)
-     ; shortcut := []
-     |}
-  | _ , _ => s
-  end.
-
-Definition react (c : int) (s : state) : state :=
-  match mode s with
-  | insert =>
-    if PrimInt63.eqb c 27 (* ESC *)
-    then {| mode := normal
-          ; document := document s
-          ; shortcut := shortcut s
-          |}
-    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126)
-    then {| mode := insert
-          ; document := insert_char_left (ascii_of_int c) (document s)
-          ; shortcut := shortcut s
-          |}
-    else if PrimInt63.eqb 10 c (* enter *)
-    then {| mode := insert
-          ; document := break_line (document s)
-          ; shortcut := shortcut s
-          |}
-    else if orb (PrimInt63.eqb c 8 (* backspace *)) (PrimInt63.eqb c 127 (* delete *))
-    then {| mode := insert
-          ; document := delete_char_left (document s)
-          ; shortcut := shortcut s
-          |}
-    else s
-  | normal =>
-    if PrimInt63.eqb c 27 (* ESC *)
-    then {| mode := normal
-          ; document := document s
-          ; shortcut := []
-          |}
-    else if andb (PrimInt63.leb 48 c) (PrimInt63.leb c 57) (* between 0 and 9 *)
-    then {| mode := normal
-          ; document := document s
-          ; shortcut :=
-              match shortcut s with
-              | [ascii_token "r"] => (* to replace with the char under cursor *)
-                  ascii_token (ascii_of_int c) :: shortcut s
-              | [ascii_token "f"] => (* to find in search *)
-                  ascii_token (ascii_of_int c) :: shortcut s
-              | [ascii_token "F"] => (* to find in search *)
-                  ascii_token (ascii_of_int c) :: shortcut s
-              | number_token n :: ts =>
-                  shortcut s ++ [number_token (10 * n + N_of_int (PrimInt63.sub c 48))]
-              | ts =>
-                  if PrimInt63.eqb c 48 (* 0 *) then shortcut s ++ [ascii_token "0"] else
-                  shortcut s ++ [number_token (N_of_int (PrimInt63.sub c 48))]
-              end
-          |}
-    else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126) (* between space and ~ *)
-    then {| mode := normal
-          ; document := document s
-          ; shortcut := shortcut s ++ [ascii_token (ascii_of_int c)]
-          |}
-    else s
-  end.
-
 CoFixpoint loop (w : C.window) (s : state) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
   c <- C.get_char w ;;
-  let s' := run_shortcut (react c s) in
+  s' <- react c w s ;;
+  let s' := run_shortcut s' in
   render w s' ;;
   loop w s'.
 
-Definition init_state : state :=
-  {| mode := normal
-   ; document := initial_text_zipper
-   ; shortcut := []
-   |}.
-
-Definition main : C.M unit :=
-  w <- C.new_window ;;
-  render w init_state ;;
-  loop w init_state ;;
-  C.close_window w.
+Definition main (args : list (list ascii)) : C.M unit :=
+  match args with
+  | [] =>
+    w <- C.new_window ;;
+    render w init_state ;;
+    loop w init_state ;;
+    C.close_window w
+  | file_name :: [] =>
+    content <- C.read_file file_name ;;
+    let s :=
+      {| mode := normal
+       ; document :=
+         match split newline content with
+         | [] => initial_text_zipper
+         | line :: lines =>
+           {| above := []
+            ; to_left := []
+            ; to_right := line
+            ; below := lines
+            |}
+         end
+      ; shortcut := []
+      ; current_file := Some file_name
+      |} in
+    w <- C.new_window ;;
+    render w s ;;
+    loop w s ;;
+    exit w
+  | _ => C.exit failure
+  end.

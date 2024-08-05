@@ -1,29 +1,9 @@
 Require Import PrimInt63 NArith Ascii List.
+Require Import Vim.Helpers.
 
 Import ListNotations.
 
 Local Open Scope char_scope.
-
-Definition break {A : Type}
-           (p : A -> bool) (l : list A) : option (list A * A * list A) :=
-  let fix aux (l1 l2 : list A) :=
-    match l2 with
-    | [] => None
-    | x :: xs => if p x
-                 then Some (rev l1, x, xs)
-                 else aux (x :: l1) xs
-    end
-  in aux [] l.
-
-
-Fixpoint Nlength {A : Type} (l : list A) : N :=
-  match l with
-  | [] => 0%N
-  | _ :: l' => N.succ (Nlength l')
-  end.
-
-Definition is_space (a : ascii) : bool := Ascii.eqb " " a.
-Definition isnt_space (a : ascii) : bool := negb (Ascii.eqb " " a).
 
 (* TODO implement above and to_left as snoc lists *)
 Record text_zipper : Type :=
@@ -49,6 +29,15 @@ Definition current_line (tz : text_zipper) : list ascii :=
 Definition lines (tz : text_zipper) : list (list ascii) :=
   above tz ++ [current_line tz] ++ below tz.
 
+Definition all_content (tz : text_zipper) : list ascii :=
+  let fix aux (l : list (list ascii)) : list ascii :=
+    match l with
+    | [] => []
+    | [x] => x
+    | x :: xs => x ++ [newline] ++ aux xs
+    end in
+  aux (lines tz).
+
 Definition peek_last {A : Type} (l : list A) : option (list A * A) :=
   match rev l with
   | [] => None
@@ -72,9 +61,6 @@ Definition peek_prev_cursor (tz : text_zipper) : option ascii :=
   | Some (_, x) => Some x
   | _ => None
   end.
-
-Definition newline : ascii :=
-  Ascii false true false true false false false false.
 
 Definition break_line (tz : text_zipper) : text_zipper :=
   {| above := above tz ++ [to_left tz]

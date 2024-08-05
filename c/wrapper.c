@@ -2,14 +2,15 @@
 #include <stdlib.h>
 #include <gc_stack.c>
 #include <prim_int63.c>
-#include "glue.h"
+#include "main.h"
 #include "foreign.h"
-
-extern value body(struct thread_info *);
+#include "glue.h"
 
 int main(int argc, char *argv[]) {
   struct thread_info* tinfo = make_tinfo();
-  value result = body(tinfo);
-  runM(tinfo, result);
+  value coq_argv = coq_argv_of_c_argv(tinfo, argc, argv);
+  value prog = body(tinfo);
+  prog = call(tinfo, prog, coq_argv);
+  runM(tinfo, prog);
   return 0;
 }
