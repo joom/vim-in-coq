@@ -154,7 +154,7 @@ Definition react (c : int) (s : state) : state :=
           |}
     else if orb (PrimInt63.eqb c 8 (* backspace *)) (PrimInt63.eqb c 127 (* delete *))
     then {| mode := insert
-          ; document := delete_char_right (document s) (* TODO left *)
+          ; document := delete_char_left (document s)
           ; shortcut := shortcut s
           |}
     else s
