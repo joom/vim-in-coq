@@ -197,7 +197,7 @@ Definition react (c : int) (w : C.window) (s : state) : C.M state :=
     else C.pure s
   | normal =>
     if PrimInt63.eqb c 27 (* ESC *)
-    then C.pure (set_shortcut [] s)
+    then C.pure (set_shortcut [] (set_current_error None s))
     else if andb (PrimInt63.leb 48 c) (PrimInt63.leb c 57) (* between 0 and 9 *)
     then C.pure (set_shortcut (
       match shortcut s with
@@ -252,9 +252,10 @@ Definition render (w : C.window) (s : state) : C.M unit :=
   C.move_cursor w (sub row 2) 0 ;;
   C.print w (string_of_edit_mode (mode s)) ;;
   C.move_cursor w (sub row 1) 0 ;;
-  match mode s with
-  | command l => C.print w (":" :: l)
-  | _ => C.print w (string_of_shortcut_tokens (shortcut s))
+  match current_error s, mode s with
+  | Some e , _ => C.print w (string_of_error e)
+  | _ , command l => C.print w (":" :: l)
+  | _ , _ => C.print w (string_of_shortcut_tokens (shortcut s))
   end ;;
   render_line (lines (document s)) 0%int63 ;;
   let (row, col) := cursor_position (document s) in
@@ -278,17 +279,17 @@ Definition main (args : list (list ascii)) : C.M unit :=
     loop w initial_state ;;
     C.close_window w
   | file_name :: [] =>
-    content <- C.read_file file_name ;;
-    let d := match split newline content with
-             | [] => initial_text_zipper
-             | line :: lines =>
-               {| above := []
-                ; to_left := []
-                ; to_right := line
-                ; below := lines
-               |}
-             end in
-    let s := set_current_file (Some file_name) (set_document d initial_state) in
+    content' <- C.read_file file_name ;;
+    let s :=
+      match content' with
+      | inl e => set_current_error (Some e) initial_state
+      | inr content =>
+        let d := match split newline content with
+                 | [] => initial_text_zipper
+                 | line :: lines =>
+                   {| above := [] ; to_left := [] ; to_right := line ; below := lines |} end in
+        set_current_file (Some file_name) (set_document d initial_state)
+      end in
     w <- C.new_window ;;
     render w s ;;
     loop w s ;;

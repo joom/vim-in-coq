@@ -1,6 +1,8 @@
 From CertiCoq.Plugin Require Import CertiCoq.
 Require Import PrimInt63 NArith Ascii.
 
+Require Import Vim.Errors.
+
 Axiom N_of_int : int -> N.
 Axiom int_of_N : N -> int.
 
@@ -33,8 +35,8 @@ Module Type Effects.
   Parameter refresh : window -> M unit.
   Parameter clear : window -> M unit.
   Parameter get_char : window -> M int.
-  Parameter read_file : list ascii -> M (list ascii).
-  Parameter write_to_file : forall (file_name content : list ascii), M unit.
+  Parameter read_file : list ascii -> M (sum error (list ascii)).
+  Parameter write_to_file : forall (file_name content : list ascii), M (option error).
 End Effects.
 
 Module C <: Effects.
@@ -53,8 +55,8 @@ Module C <: Effects.
   | refreshI : window -> MI unit
   | clearI : window -> MI unit
   | get_charI : window -> MI int
-  | read_fileI : list ascii -> MI (list ascii)
-  | write_to_fileI : forall (file_name content : list ascii), MI unit.
+  | read_fileI : list ascii -> MI (sum error (list ascii))
+  | write_to_fileI : forall (file_name content : list ascii), MI (option error).
 
   Definition M := MI.
   Definition pure : forall {A}, A -> M A := @pureI.
@@ -69,8 +71,8 @@ Module C <: Effects.
   Definition refresh : window -> M unit := @refreshI.
   Definition clear : window -> M unit := @clearI.
   Definition get_char : window -> M int := @get_charI.
-  Definition read_file : list ascii -> M (list ascii) := @read_fileI.
-  Definition write_to_file : forall (file_name content : list ascii), M unit := @write_to_fileI.
+  Definition read_file : list ascii -> M (sum error (list ascii)) := @read_fileI.
+  Definition write_to_file : forall (file_name content : list ascii), M (option error) := @write_to_fileI.
 End C.
 
 Notation "e1 ;; e2" :=

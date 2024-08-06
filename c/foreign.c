@@ -183,29 +183,61 @@ value coq_ascii_list_of_c_string(struct thread_info *tinfo, unsigned char *s) {
   return temp;
 }
 
-value read_file_into_coq_ascii_list(struct thread_info *tinfo, char *file_name) {
+value read_file_into_coq_ascii_list(struct thread_info *tinfo, value file_name) {
+  value err = NULL;
+  char *c_file_name = c_string_of_coq_ascii_list(file_name);
   struct stat st;
-  FILE *fp = fopen(file_name, "r");
-  fstat(fileno(fp), &st);
-  fseek(fp, -1, SEEK_END); // start from the end
+  FILE *fp = fopen(c_file_name, "r");
+  free(c_file_name);
+  if (fp == NULL) {
+    return alloc_make_Coq_Init_Datatypes_sum_inl(tinfo,
+        alloc_make_Vim_Errors_error_CouldntReadFile(tinfo, file_name));
+  }
+  int fn;
+  if ((fn = fileno(fp)) == -1) {
+    fclose(fp);
+    return alloc_make_Coq_Init_Datatypes_sum_inl(tinfo,
+        alloc_make_Vim_Errors_error_CouldntReadFile(tinfo, file_name));
+  }
+  if (fstat(fn, &st)) {
+    fclose(fp);
+    return alloc_make_Coq_Init_Datatypes_sum_inl(tinfo,
+        alloc_make_Vim_Errors_error_CouldntReadFile(tinfo, file_name));
+  }
+  if (fseek(fp, -1, SEEK_END)) { // start from the end
+    return alloc_make_Coq_Init_Datatypes_sum_inl(tinfo,
+        alloc_make_Vim_Errors_error_CouldntReadFile(tinfo, file_name));
+  }
   value temp = make_Coq_Init_Datatypes_list_nil();
+  // could do better error handling for the loop
   for (int p = st.st_size; p > 0; p--) {
     char c = fgetc(fp);
     fseek(fp, -2, SEEK_CUR); // read backwards
     temp = alloc_make_Coq_Init_Datatypes_list_cons(tinfo, coq_ascii_of_c_char(tinfo, c), temp);
   }
   fclose(fp);
-  return temp;
+  return alloc_make_Coq_Init_Datatypes_sum_inr(tinfo, temp);
 }
 
-value write_file_from_coq_ascii_list(char *file_name, value content) {
-  FILE *fp = fopen(file_name, "w");
+value write_file_from_coq_ascii_list(struct thread_info *tinfo, value file_name, value content) {
+  char *c_file_name = c_string_of_coq_ascii_list(file_name);
+  FILE *fp = fopen(c_file_name, "w");
+  free(c_file_name);
+  if (fp == NULL) {
+    return alloc_make_Coq_Init_Datatypes_option_Some(tinfo,
+        alloc_make_Vim_Errors_error_CouldntWriteToFile(tinfo, file_name));
+  }
   char *s = c_string_of_coq_ascii_list(content);
-  fputs(s, fp);
+  if (fputs(s, fp) == EOF) {
+    fclose(fp);
+    free(s);
+    return alloc_make_Coq_Init_Datatypes_option_Some(tinfo,
+        alloc_make_Vim_Errors_error_CouldntWriteToFile(tinfo, file_name));
+  }
   // also possible to write it character by character using fputc
   fclose(fp);
   free(s);
-  return make_Coq_Init_Datatypes_unit_tt();
+  return make_Coq_Init_Datatypes_option_None();
 }
 
 typedef enum { PURE, BIND, EXIT, NEWWINDOW, CLOSEWINDOW,
@@ -289,18 +321,12 @@ value runM(struct thread_info *tinfo, value action) {
     }
     case READ_FILE: {
       value file_name = get_args(action)[0];
-      char *c_file_name = c_string_of_coq_ascii_list(file_name);
-      value res = read_file_into_coq_ascii_list(tinfo, c_file_name);
-      free(c_file_name);
-      return res;
+      return read_file_into_coq_ascii_list(tinfo, file_name);
     }
     case WRITE_TO_FILE: {
       value file_name = get_args(action)[0];
       value content = get_args(action)[1];
-      char *c_file_name = c_string_of_coq_ascii_list(file_name);
-      value res = write_file_from_coq_ascii_list(c_file_name, content);
-      free(c_file_name);
-      return res;
+      return write_file_from_coq_ascii_list(tinfo, file_name, content);
     }
     default: return 0;
   }
