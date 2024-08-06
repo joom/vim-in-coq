@@ -244,7 +244,40 @@ Definition react (c : int) (w : C.window) (s : state) : C.M state :=
     else C.pure s
   end.
 
-Definition render (w : C.window) (s : state) (bar_style : C.style) : C.M unit :=
+Record style_set :=
+  { default_style : C.style
+  ; normal_bar_style : C.style
+  ; insert_bar_style : C.style
+  ; visual_bar_style : C.style
+  ; command_bar_style : C.style
+  ; replace_bar_style : C.style
+  }.
+
+Definition make_styles : C.M style_set :=
+  default <- C.make_style white default ;;
+  normal <- C.make_style black green ;;
+  insert <- C.make_style black yellow ;;
+  visual <- C.make_style black magenta ;;
+  command <- C.make_style black green ;;
+  replace <- C.make_style black red ;;
+  C.pure  {| default_style := default
+           ; normal_bar_style := normal
+           ; insert_bar_style := insert
+           ; visual_bar_style := visual
+           ; command_bar_style := command
+           ; replace_bar_style := replace
+           |}.
+
+Definition style_of_mode (styles : style_set) (m : edit_mode) : C.style :=
+  match m with
+  | normal => normal_bar_style styles
+  | insert => insert_bar_style styles
+  | visual _ => visual_bar_style styles
+  | command _ => command_bar_style styles
+  | replace => replace_bar_style styles
+  end.
+
+Definition render (w : C.window) (styles : style_set) (s : state)  : C.M unit :=
   let fix render_line (l : list (list ascii)) (row : int) : C.M unit :=
     match l with
     | [] =>
@@ -258,9 +291,12 @@ Definition render (w : C.window) (s : state) (bar_style : C.style) : C.M unit :=
   size <- C.get_size w ;;
   let '(screen_rows, screen_cols) := size in
   C.move_cursor w (sub screen_rows 2) 0 ;;
-  C.start_style bar_style ;;
+  let mode_style := style_of_mode styles (mode s) in
+  C.start_style mode_style ;;
+  C.print w (repeat " " (nat_of_int screen_cols)) ;;
+  C.move_cursor w (sub screen_rows 2) 0 ;;
   C.print w (string_of_edit_mode (mode s)) ;;
-  C.end_style bar_style ;;
+  C.end_style mode_style ;;
   C.move_cursor w (sub screen_rows 1) 0 ;;
   match current_error s, mode s with
   | Some e , _ => C.print w (string_of_error e)
@@ -272,24 +308,23 @@ Definition render (w : C.window) (s : state) (bar_style : C.style) : C.M unit :=
   C.move_cursor w (int_of_N cursor_row) (int_of_N cursor_col) ;;
   C.refresh w.
 
-CoFixpoint loop (w : C.window) (s : state) (bar_style : C.style) : C.M unit :=
+CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
   c <- C.get_char w ;;
   s' <- react c w s ;;
   let s' := run_shortcut s' in
-  render w s' bar_style ;;
-  loop w s' bar_style.
+  render w styles s' ;;
+  loop w styles s'.
 
 Definition main (args : list (list ascii)) : C.M unit :=
   match args with
   | [] =>
     w <- C.new_window ;;
-    default_style <- C.make_style yellow black ;;
-    bar_style <- C.make_style black yellow ;;
-    C.set_window_default_style w default_style ;;
-    render w initial_state bar_style ;;
-    loop w initial_state bar_style ;;
+    styles <- make_styles ;;
+    C.set_window_default_style w (default_style styles) ;;
+    render w styles initial_state ;;
+    loop w styles initial_state ;;
     C.close_window w
   | file_name :: [] =>
     content' <- C.read_file file_name ;;
@@ -304,11 +339,10 @@ Definition main (args : list (list ascii)) : C.M unit :=
         set_current_file (Some file_name) (set_document d initial_state)
       end in
     w <- C.new_window ;;
-    default_style <- C.make_style yellow black ;;
-    bar_style <- C.make_style black yellow ;;
-    C.set_window_default_style w default_style ;;
-    render w s bar_style ;;
-    loop w s bar_style ;;
+    styles <- make_styles ;;
+    C.set_window_default_style w (default_style styles) ;;
+    render w styles s ;;
+    loop w styles s ;;
     exit w
   | _ => C.exit failure
   end.

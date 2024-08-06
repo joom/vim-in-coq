@@ -21,7 +21,7 @@ Inductive exit_status :=
 | failure : exit_status.
 
 Inductive color :=
-  black | blue | green | cyan | red | magenta | yellow | white | 
+  default | black | blue | green | cyan | red | magenta | yellow | white |
   bright_black | bright_blue | bright_green | bright_cyan | bright_red |
   bright_magenta | bright_yellow | bright_white.
 

@@ -18,6 +18,6 @@ clean: Makefile.coq
 	rm -rf ./edit ./edit.dSYM
 
 c:
-	gcc -I ./certicoq/plugin/runtime -lncurses -w -g -o edit ./c/main.c ./c/wrapper.c ./c/glue.c ./c/foreign.c
+	gcc -I ./certicoq/plugin/runtime -lncurses -w -O2 -o edit ./c/main.c ./c/wrapper.c ./c/glue.c ./c/foreign.c
 
 .PHONY: all Makefile.coq coq clean c

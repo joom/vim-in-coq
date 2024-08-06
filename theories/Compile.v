@@ -2,7 +2,7 @@ From CertiCoq.Plugin Require Import CertiCoq.
 
 Require Import PrimInt63 NArith Ascii String.
 
-Require Import Vim.Errors 
+Require Import Vim.Errors
                Vim.Program
                Vim.Foreign.
 

@@ -243,6 +243,7 @@ value write_file_from_coq_ascii_list(struct thread_info *tinfo, value file_name,
 short style_count = 1;
 
 short c_color_of_coq_color(value c) {
+  if (c == make_Vim_Foreign_color_default()) return -1;
   if (c == make_Vim_Foreign_color_black()) return COLOR_BLACK;
   if (c == make_Vim_Foreign_color_blue()) return COLOR_BLUE;
   if (c == make_Vim_Foreign_color_green()) return COLOR_GREEN;
@@ -292,6 +293,7 @@ value runM(struct thread_info *tinfo, value action) {
     }
     case NEWWINDOW: {
       value w = (value) initscr();
+      use_default_colors();
       noecho();
       /* curs_set(0); */
       start_color();
