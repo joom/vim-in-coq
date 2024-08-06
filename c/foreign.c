@@ -240,8 +240,31 @@ value write_file_from_coq_ascii_list(struct thread_info *tinfo, value file_name,
   return make_Coq_Init_Datatypes_option_None();
 }
 
+short style_count = 1;
+
+short c_color_of_coq_color(value c) {
+  if (c == make_Vim_Foreign_color_black()) return COLOR_BLACK;
+  if (c == make_Vim_Foreign_color_blue()) return COLOR_BLUE;
+  if (c == make_Vim_Foreign_color_green()) return COLOR_GREEN;
+  if (c == make_Vim_Foreign_color_cyan()) return COLOR_CYAN;
+  if (c == make_Vim_Foreign_color_red()) return COLOR_RED;
+  if (c == make_Vim_Foreign_color_magenta()) return COLOR_MAGENTA;
+  if (c == make_Vim_Foreign_color_yellow()) return COLOR_YELLOW;
+  if (c == make_Vim_Foreign_color_white()) return COLOR_WHITE;
+  if (c == make_Vim_Foreign_color_bright_black()) return 8 | COLOR_BLACK;
+  if (c == make_Vim_Foreign_color_bright_blue()) return 8 | COLOR_BLUE;
+  if (c == make_Vim_Foreign_color_bright_green()) return 8 | COLOR_GREEN;
+  if (c == make_Vim_Foreign_color_bright_cyan()) return 8 | COLOR_CYAN;
+  if (c == make_Vim_Foreign_color_bright_red()) return 8 | COLOR_RED;
+  if (c == make_Vim_Foreign_color_bright_magenta()) return 8 | COLOR_MAGENTA;
+  if (c == make_Vim_Foreign_color_bright_yellow()) return 8 | COLOR_YELLOW;
+  if (c == make_Vim_Foreign_color_bright_white()) return 8 | COLOR_WHITE;
+}
+
 typedef enum { PURE, BIND, EXIT, NEWWINDOW, CLOSEWINDOW,
-               MOVECURSOR, GETCURSOR, GETSIZE, PRINT, REFRESH, CLEAR, GETCHAR,
+               MOVECURSOR, GETCURSOR, GETSIZE, PRINT, 
+               MAKE_STYLE, SET_WINDOW_DEFAULT_STYLE, START_STYLE, END_STYLE,
+               REFRESH, CLEAR, GETCHAR,
                READ_FILE, WRITE_TO_FILE } M;
 
 value runM(struct thread_info *tinfo, value action) {
@@ -271,6 +294,7 @@ value runM(struct thread_info *tinfo, value action) {
       value w = (value) initscr();
       noecho();
       /* curs_set(0); */
+      start_color();
       return w;
     }
     case CLOSEWINDOW: {
@@ -303,6 +327,28 @@ value runM(struct thread_info *tinfo, value action) {
       char *s = c_string_of_coq_ascii_list(get_args(action)[1]);
       waddstr(w, s);
       free(s);
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case MAKE_STYLE: {
+      value fg = c_color_of_coq_color(get_args(action)[0]);
+      value bg = c_color_of_coq_color(get_args(action)[1]);
+      init_pair(style_count, fg, bg);
+      return style_count++;
+    }
+    case SET_WINDOW_DEFAULT_STYLE: {
+      value w = get_args(action)[0];
+      value style = get_args(action)[1];
+      wbkgd(w, COLOR_PAIR(style));
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case START_STYLE: {
+      value style = get_args(action)[0];
+      attron(COLOR_PAIR(style));
+      return make_Coq_Init_Datatypes_unit_tt();
+    }
+    case END_STYLE: {
+      value style = get_args(action)[0];
+      attroff(COLOR_PAIR(style));
       return make_Coq_Init_Datatypes_unit_tt();
     }
     case REFRESH: {

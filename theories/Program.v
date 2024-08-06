@@ -114,6 +114,14 @@ Definition shortcut_view (s : state) : nat * list shortcut_token :=
 
 Definition run_shortcut (s : state) : state :=
   match mode s , shortcut_view s with
+  | normal , (1 , [ascii_token "["; ascii_token "A"]) (* up arrow key *) =>
+    set_shortcut [] (set_document (move_up (document s)) s)
+  | normal , (1 , [ascii_token "["; ascii_token "B"]) (* down arrow key *) =>
+    set_shortcut [] (set_document (move_down (document s)) s)
+  | normal , (1 , [ascii_token "["; ascii_token "D"]) (* left arrow key *) =>
+    set_shortcut [] (set_document (move_left (document s)) s)
+  | normal , (1 , [ascii_token "["; ascii_token "C"]) (* right arrow key *) =>
+    set_shortcut [] (set_document (move_right (document s)) s)
   | normal , (n , [ascii_token ":"]) =>
     set_shortcut [] (set_mode (command []) s)
   | normal , (n , [ascii_token "a"]) =>
@@ -236,7 +244,7 @@ Definition react (c : int) (w : C.window) (s : state) : C.M state :=
     else C.pure s
   end.
 
-Definition render (w : C.window) (s : state) : C.M unit :=
+Definition render (w : C.window) (s : state) (bar_style : C.style) : C.M unit :=
   let fix render_line (l : list (list ascii)) (row : int) : C.M unit :=
     match l with
     | [] =>
@@ -248,35 +256,40 @@ Definition render (w : C.window) (s : state) : C.M unit :=
     end in
   C.clear w ;;
   size <- C.get_size w ;;
-  let '(row, col) := size in
-  C.move_cursor w (sub row 2) 0 ;;
+  let '(screen_rows, screen_cols) := size in
+  C.move_cursor w (sub screen_rows 2) 0 ;;
+  C.start_style bar_style ;;
   C.print w (string_of_edit_mode (mode s)) ;;
-  C.move_cursor w (sub row 1) 0 ;;
+  C.end_style bar_style ;;
+  C.move_cursor w (sub screen_rows 1) 0 ;;
   match current_error s, mode s with
   | Some e , _ => C.print w (string_of_error e)
   | _ , command l => C.print w (":" :: l)
   | _ , _ => C.print w (string_of_shortcut_tokens (shortcut s))
   end ;;
   render_line (lines (document s)) 0%int63 ;;
-  let (row, col) := cursor_position (document s) in
-  C.move_cursor w (int_of_N row) (int_of_N col) ;;
+  let (cursor_row, cursor_col) := cursor_position (document s) in
+  C.move_cursor w (int_of_N cursor_row) (int_of_N cursor_col) ;;
   C.refresh w.
 
-CoFixpoint loop (w : C.window) (s : state) : C.M unit :=
+CoFixpoint loop (w : C.window) (s : state) (bar_style : C.style) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
   c <- C.get_char w ;;
   s' <- react c w s ;;
   let s' := run_shortcut s' in
-  render w s' ;;
-  loop w s'.
+  render w s' bar_style ;;
+  loop w s' bar_style.
 
 Definition main (args : list (list ascii)) : C.M unit :=
   match args with
   | [] =>
     w <- C.new_window ;;
-    render w initial_state ;;
-    loop w initial_state ;;
+    default_style <- C.make_style yellow black ;;
+    bar_style <- C.make_style black yellow ;;
+    C.set_window_default_style w default_style ;;
+    render w initial_state bar_style ;;
+    loop w initial_state bar_style ;;
     C.close_window w
   | file_name :: [] =>
     content' <- C.read_file file_name ;;
@@ -291,8 +304,11 @@ Definition main (args : list (list ascii)) : C.M unit :=
         set_current_file (Some file_name) (set_document d initial_state)
       end in
     w <- C.new_window ;;
-    render w s ;;
-    loop w s ;;
+    default_style <- C.make_style yellow black ;;
+    bar_style <- C.make_style black yellow ;;
+    C.set_window_default_style w default_style ;;
+    render w s bar_style ;;
+    loop w s bar_style ;;
     exit w
   | _ => C.exit failure
   end.

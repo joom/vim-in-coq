@@ -10,6 +10,7 @@ CertiCoq Compile -unsafe-erasure -file "main" main.
 CertiCoq Generate Glue -file "glue"
   [ ascii
   , C.MI
+  , color
   , error
   , exit_status
   , list
