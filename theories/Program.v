@@ -296,6 +296,12 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M unit :=
   C.print w (repeat " " (nat_of_int screen_cols)) ;;
   C.move_cursor w (sub screen_rows 2) 0 ;;
   C.print w (string_of_edit_mode (mode s)) ;;
+  match current_file s with
+  | Some file_name =>
+      C.move_cursor w (sub screen_rows 2) (sub screen_cols (int_of_nat (length file_name))) ;;
+      C.print w file_name
+  | _ => C.pure tt
+  end ;;
   C.end_style mode_style ;;
   C.move_cursor w (sub screen_rows 1) 0 ;;
   match current_error s, mode s with
