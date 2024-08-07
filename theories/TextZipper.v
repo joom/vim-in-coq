@@ -1,4 +1,4 @@
-Require Import PrimInt63 NArith Ascii List.
+Require Import PrimInt63 Ascii List.
 Require Import Vim.Helpers.
 
 Import ListNotations.
@@ -20,8 +20,8 @@ Definition initial_text_zipper : text_zipper :=
    ; below := []
    |}.
 
-Definition cursor_position (tz : text_zipper) : N * N :=
-  (Nlength (above tz), Nlength (to_left tz)).
+Definition cursor_position (tz : text_zipper) : int * int :=
+  (length_int (above tz), length_int (to_left tz)).
 
 Definition current_line (tz : text_zipper) : list ascii :=
   to_left tz ++ to_right tz.
@@ -243,3 +243,27 @@ Definition delete_current_line (tz : text_zipper) : text_zipper :=
                     |}
          end
   end.
+
+Definition text_zipper_of_string (content : list ascii) : text_zipper :=
+  match split newline content with
+  | [] => initial_text_zipper
+  | line :: lines =>
+      {| above := [] ; to_left := [] ; to_right := line ; below := lines |}
+  end.
+
+Definition calculate_movement (before after : text_zipper) : int * int :=
+  (PrimInt63.sub (length_int (above after)) (length_int (above before)),
+   PrimInt63.sub (length_int (to_left after)) (length_int (to_left before))).
+
+Require Import String.
+
+Definition x := text_zipper_of_string (List.concat
+                 [(list_ascii_of_string "hi there man"%string)
+                 ; [newline]
+                 ;(list_ascii_of_string "how are you doing"%string)
+                 ; [newline]
+                 ;(list_ascii_of_string "I hope you're okay"%string)
+                 ]).
+
+Compute x.
+Compute (calculate_movement (move_down x) x).

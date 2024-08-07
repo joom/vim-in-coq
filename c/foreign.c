@@ -240,6 +240,8 @@ value write_file_from_coq_ascii_list(struct thread_info *tinfo, value file_name,
   return make_Coq_Init_Datatypes_option_None();
 }
 
+// Global variable to keep track of the styles registered with ncurses
+// Acts as gensym for new style IDs
 short style_count = 1;
 
 short c_color_of_coq_color(value c) {

@@ -1,4 +1,4 @@
-Require Import PrimInt63 NArith Ascii List.
+Require Import PrimInt63 Ascii List.
 
 Require Import Vim.Helpers
                Vim.Errors
@@ -41,12 +41,12 @@ Record state :=
   ; has_changes : bool
   ; current_file : option (list ascii)
   ; current_error : option error
-  ; screen_row : int
-  ; screen_col : int
-  ; offset_row : int
-  ; offset_col : int
-  ; cursor_row : int
-  ; cursor_col : int
+  ; screen_row : int (* Screen size in rows *)
+  ; screen_col : int (* Screen size in cols *)
+  ; offset_row : int (* Hide this many rows from the top of the document *)
+  ; offset_col : int (* Hide this many cols from the left side of the document *)
+  ; cursor_row : int (* Where the cursor is on the screen *)
+  ; cursor_col : int (* Where the cursor is on the screen *)
   }.
 
 Definition initial_state : state :=
@@ -419,6 +419,7 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
   C.clear w ;;
   size <- C.get_size w ;;
   let '(screen_rows, screen_cols) := size in
+  let screen_rows_for_document := PrimInt63.sub screen_rows 3 in
 
   (* Render bottom line for the mode *)
   C.move_cursor w (sub screen_rows 2) 0 ;;
@@ -444,7 +445,10 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
   end ;;
 
   (* Render document *)
-  let fix render_line (l : list (list ascii)) (row : int) (offset_row : int) : C.M unit :=
+  let fix render_line
+          (l : list (list ascii)) (row : int)
+          (offset_row : int) (screen_row : int) : C.M unit :=
+    if PrimInt63.leb screen_row 0 then C.pure tt else
     match l with
     | [] =>
       C.pure tt
@@ -452,23 +456,38 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
       if PrimInt63.leb offset_row 0
       then C.move_cursor w row 0 ;;
            C.print w (firstn_int screen_cols (skipn_int (offset_col s) x)) ;;
-           render_line xs (add 1 row) 0%int63
-      else render_line xs (add 1 row) (sub 1 offset_row)
+           render_line xs (add row 1) 0%int63 (sub screen_row 1)
+      else render_line xs (add row 1) (sub offset_row 1) screen_row
     end in
-  render_line (lines (document s)) 0%int63 (offset_row s) ;;
-  let (cursor_row, cursor_col) := cursor_position (document s) in
-  C.move_cursor w (int_of_N cursor_row) (int_of_N cursor_col) ;;
+  render_line (lines (document s)) 0%int63 (offset_row s) screen_rows_for_document ;;
+  C.move_cursor w (cursor_row s) (cursor_col s) ;;
   C.refresh w ;;
   C.pure (set_screen_row screen_rows (set_screen_col screen_cols s)).
+
+Definition handle_movement (before after : state) : state :=
+  let '(rows, cols) := calculate_movement (document before) (document after) in
+  let after := if PrimInt63.leb (PrimInt63.add (cursor_col after) cols) 0%int63
+               then set_offset_col (PrimInt63.sub (offset_col after) cols) after
+               else if PrimInt63.leb (screen_col after) (PrimInt63.add (cursor_col after) cols)
+               then set_offset_col (PrimInt63.sub (offset_col after) cols) after
+               else set_cursor_col (PrimInt63.add (cursor_col after) cols) after in
+  let screen_rows_for_document := PrimInt63.sub (screen_row after) 3 in
+  let after := if PrimInt63.leb (PrimInt63.add (cursor_row after) rows) 0%int63
+               then set_offset_row (PrimInt63.sub (offset_row after) rows) after
+               else if PrimInt63.leb screen_rows_for_document (PrimInt63.add (cursor_row after) rows)
+               then set_offset_row (PrimInt63.sub (offset_row after) rows) after
+               else set_cursor_row (PrimInt63.add (cursor_row after) rows) after in
+  after.
 
 CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
   c <- C.get_char w ;;
   s <- react c w s ;;
-  let s := run_shortcut s in
-  s <- render w styles s ;;
-  loop w styles s.
+  let s' := run_shortcut s in
+  let s' := handle_movement s s' in
+  s' <- render w styles s' ;;
+  loop w styles s'.
 
 Definition main (args : list (list ascii)) : C.M unit :=
   w <- C.new_window ;;
@@ -488,10 +507,7 @@ Definition main (args : list (list ascii)) : C.M unit :=
       match content' with
       | inl e => set_current_error (Some e) s
       | inr content =>
-        let d := match split newline content with
-                 | [] => initial_text_zipper
-                 | line :: lines =>
-                   {| above := [] ; to_left := [] ; to_right := line ; below := lines |} end in
+        let d := text_zipper_of_string content in
         set_current_file (Some file_name) (set_document d s)
       end in
     s <- render w styles s ;;

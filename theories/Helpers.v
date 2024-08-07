@@ -40,12 +40,6 @@ Definition break {A : Type}
     end
   in aux [] l.
 
-Fixpoint Nlength {A : Type} (l : list A) : N :=
-  match l with
-  | [] => 0%N
-  | _ :: l' => N.succ (Nlength l')
-  end.
-
 Definition is_space (a : ascii) : bool := Ascii.eqb " " a.
 Definition isnt_space (a : ascii) : bool := negb (Ascii.eqb " " a).
 
@@ -63,6 +57,18 @@ Fixpoint apply_with_sep {A : Type} (n : nat) (sep : A -> A) (f : A -> A) (a : A)
   | O => a
   | S O => f a
   | S ((S _) as n') => apply_with_sep n' sep f (sep (f a))
+  end.
+
+Fixpoint length_N {A : Type} (l : list A) : N :=
+  match l with
+  | [] => 0%N
+  | _ :: l' => N.succ (length_N l')
+  end.
+
+Fixpoint length_int {A : Type} (l : list A) : int :=
+  match l with
+  | [] => 0%int63
+  | _ :: l' => PrimInt63.add (length_int l') 1
   end.
 
 Fixpoint firstn_int {A : Type} (i : int) (l : list A) : list A :=
