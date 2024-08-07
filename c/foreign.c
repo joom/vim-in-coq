@@ -262,10 +262,10 @@ short c_color_of_coq_color(value c) {
   if (c == make_Vim_Foreign_color_bright_white()) return 8 | COLOR_WHITE;
 }
 
-typedef enum { PURE, BIND, EXIT, NEWWINDOW, CLOSEWINDOW,
-               MOVECURSOR, GETCURSOR, GETSIZE, PRINT, 
+typedef enum { PURE, BIND, EXIT, NEW_WINDOW, CLOSE_WINDOW,
+               MOVE_CURSOR, GET_CURSOR, GET_SIZE, PRINT, 
                MAKE_STYLE, SET_WINDOW_DEFAULT_STYLE, START_STYLE, END_STYLE,
-               REFRESH, CLEAR, GETCHAR,
+               REFRESH, CLEAR, GET_CHAR,
                READ_FILE, WRITE_TO_FILE } M;
 
 value runM(struct thread_info *tinfo, value action) {
@@ -291,7 +291,7 @@ value runM(struct thread_info *tinfo, value action) {
       }
       return make_Coq_Init_Datatypes_unit_tt();
     }
-    case NEWWINDOW: {
+    case NEW_WINDOW: {
       value w = (value) initscr();
       use_default_colors();
       noecho();
@@ -299,26 +299,26 @@ value runM(struct thread_info *tinfo, value action) {
       start_color();
       return w;
     }
-    case CLOSEWINDOW: {
+    case CLOSE_WINDOW: {
       value w = get_args(action)[0];
       delwin(w);
       endwin();
       return make_Coq_Init_Datatypes_unit_tt();
     }
-    case MOVECURSOR: {
+    case MOVE_CURSOR: {
       value w = get_args(action)[0];
       value arg0 = get_args(action)[1];
       value arg1 = get_args(action)[2];
       wmove(w, Unsigned_long_val(arg0), Unsigned_long_val(arg1));
       return make_Coq_Init_Datatypes_unit_tt();
     }
-    case GETCURSOR: {
+    case GET_CURSOR: {
       value w = get_args(action)[0];
       value y = Val_long(getcury(w));
       value x = Val_long(getcurx(w));
       return alloc_make_Coq_Init_Datatypes_prod_pair(tinfo, y, x);
     }
-    case GETSIZE: {
+    case GET_SIZE: {
       value w = get_args(action)[0];
       value y = Val_long(getmaxy(w));
       value x = Val_long(getmaxx(w));
@@ -363,7 +363,7 @@ value runM(struct thread_info *tinfo, value action) {
       wclear(w);
       return make_Coq_Init_Datatypes_unit_tt();
     }
-    case GETCHAR: {
+    case GET_CHAR: {
       value w = get_args(action)[0];
       return Val_long(wgetch(w));
     }

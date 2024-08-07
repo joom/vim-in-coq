@@ -41,10 +41,12 @@ Record state :=
   ; has_changes : bool
   ; current_file : option (list ascii)
   ; current_error : option error
-  ; row_offset : int
-  ; col_offset : int
-  ; row_cursor : int
-  ; col_cursor : int
+  ; screen_row : int
+  ; screen_col : int
+  ; offset_row : int
+  ; offset_col : int
+  ; cursor_row : int
+  ; cursor_col : int
   }.
 
 Definition initial_state : state :=
@@ -54,10 +56,12 @@ Definition initial_state : state :=
    ; has_changes := false
    ; current_file := None
    ; current_error := None
-   ; row_offset := 0
-   ; col_offset := 0
-   ; row_cursor := 0
-   ; col_cursor := 0
+   ; screen_row := 0
+   ; screen_col := 0
+   ; offset_row := 0
+   ; offset_col := 0
+   ; cursor_row := 0
+   ; cursor_col := 0
    |}.
 
 Definition set_mode (new : edit_mode) (s : state) : state :=
@@ -67,10 +71,12 @@ Definition set_mode (new : edit_mode) (s : state) : state :=
    ; has_changes := false
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
 Definition set_document (new : text_zipper) (s : state) : state :=
@@ -80,10 +86,12 @@ Definition set_document (new : text_zipper) (s : state) : state :=
    ; has_changes := false
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
 Definition set_shortcut (new : list shortcut_token) (s : state) : state :=
@@ -93,10 +101,12 @@ Definition set_shortcut (new : list shortcut_token) (s : state) : state :=
    ; has_changes := false
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
 Definition set_has_changes (new : bool) (s : state) : state :=
@@ -106,10 +116,12 @@ Definition set_has_changes (new : bool) (s : state) : state :=
    ; has_changes := new
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
 Definition set_current_file (new : option (list ascii)) (s : state) : state :=
@@ -119,10 +131,12 @@ Definition set_current_file (new : option (list ascii)) (s : state) : state :=
    ; has_changes := has_changes s
    ; current_file := new
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
 Definition set_current_error (new : option error) (s : state) : state :=
@@ -132,62 +146,102 @@ Definition set_current_error (new : option error) (s : state) : state :=
    ; has_changes := has_changes s
    ; current_file := current_file s
    ; current_error := new
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
-Definition set_row_offset (new : int) (s : state) : state :=
+Definition set_screen_row (new : int) (s : state) : state :=
   {| mode := mode s
    ; document := document s
    ; shortcut := shortcut s
    ; has_changes := has_changes s
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := new
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := new
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
-Definition set_col_offset (new : int) (s : state) : state :=
+Definition set_screen_col (new : int) (s : state) : state :=
   {| mode := mode s
    ; document := document s
    ; shortcut := shortcut s
    ; has_changes := has_changes s
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := new
-   ; row_cursor := row_cursor s
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := new
+   ; offset_row := offset_row s
+   ; offset_col := offset_row s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
-Definition set_row_cursor (new : int) (s : state) : state :=
+Definition set_offset_row (new : int) (s : state) : state :=
   {| mode := mode s
    ; document := document s
    ; shortcut := shortcut s
    ; has_changes := has_changes s
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := new
-   ; col_cursor := col_cursor s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := new
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
    |}.
 
-Definition set_col_cursor (new : int) (s : state) : state :=
+Definition set_offset_col (new : int) (s : state) : state :=
   {| mode := mode s
    ; document := document s
    ; shortcut := shortcut s
    ; has_changes := has_changes s
    ; current_file := current_file s
    ; current_error := current_error s
-   ; row_offset := row_offset s
-   ; col_offset := col_offset s
-   ; row_cursor := row_cursor s
-   ; col_cursor := new
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := new
+   ; cursor_row := cursor_row s
+   ; cursor_col := cursor_col s
+   |}.
+
+Definition set_cursor_row (new : int) (s : state) : state :=
+  {| mode := mode s
+   ; document := document s
+   ; shortcut := shortcut s
+   ; has_changes := has_changes s
+   ; current_file := current_file s
+   ; current_error := current_error s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := new
+   ; cursor_col := cursor_col s
+   |}.
+
+Definition set_cursor_col (new : int) (s : state) : state :=
+  {| mode := mode s
+   ; document := document s
+   ; shortcut := shortcut s
+   ; has_changes := has_changes s
+   ; current_file := current_file s
+   ; current_error := current_error s
+   ; screen_row := screen_row s
+   ; screen_col := screen_col s
+   ; offset_row := offset_row s
+   ; offset_col := offset_col s
+   ; cursor_row := cursor_row s
+   ; cursor_col := new
    |}.
 
 Definition shortcut_view (s : state) : nat * list shortcut_token :=
@@ -361,7 +415,7 @@ Definition style_of_mode (styles : style_set) (m : edit_mode) : C.style :=
   | replace => replace_bar_style styles
   end.
 
-Definition render (w : C.window) (styles : style_set) (s : state)  : C.M unit :=
+Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :=
   C.clear w ;;
   size <- C.get_size w ;;
   let '(screen_rows, screen_cols) := size in
@@ -390,56 +444,57 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M unit :=
   end ;;
 
   (* Render document *)
-  let fix render_line (l : list (list ascii)) (row : int) (row_offset : int) : C.M unit :=
+  let fix render_line (l : list (list ascii)) (row : int) (offset_row : int) : C.M unit :=
     match l with
     | [] =>
       C.pure tt
     | x :: xs =>
-      if PrimInt63.leb row_offset 0
+      if PrimInt63.leb offset_row 0
       then C.move_cursor w row 0 ;;
-           C.print w (firstn_int screen_cols (skipn_int (col_offset s) x)) ;;
+           C.print w (firstn_int screen_cols (skipn_int (offset_col s) x)) ;;
            render_line xs (add 1 row) 0%int63
-      else render_line xs (add 1 row) (sub 1 row_offset)
+      else render_line xs (add 1 row) (sub 1 offset_row)
     end in
-  render_line (lines (document s)) 0%int63 (row_offset s) ;;
+  render_line (lines (document s)) 0%int63 (offset_row s) ;;
   let (cursor_row, cursor_col) := cursor_position (document s) in
   C.move_cursor w (int_of_N cursor_row) (int_of_N cursor_col) ;;
-  C.refresh w.
+  C.refresh w ;;
+  C.pure (set_screen_row screen_rows (set_screen_col screen_cols s)).
 
 CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
   c <- C.get_char w ;;
-  s' <- react c w s ;;
-  let s' := run_shortcut s' in
-  render w styles s' ;;
-  loop w styles s'.
+  s <- react c w s ;;
+  let s := run_shortcut s in
+  s <- render w styles s ;;
+  loop w styles s.
 
 Definition main (args : list (list ascii)) : C.M unit :=
+  w <- C.new_window ;;
+  styles <- make_styles ;;
+  C.set_window_default_style w (default_style styles) ;;
+  size <- C.get_size w ;;
+  let '(screen_rows, screen_cols) := size in
+  let s := set_screen_row screen_rows (set_screen_col screen_cols initial_state) in
   match args with
   | [] =>
-    w <- C.new_window ;;
-    styles <- make_styles ;;
-    C.set_window_default_style w (default_style styles) ;;
-    render w styles initial_state ;;
-    loop w styles initial_state ;;
+    s <- render w styles s ;;
+    loop w styles s ;;
     C.close_window w
   | file_name :: [] =>
     content' <- C.read_file file_name ;;
     let s :=
       match content' with
-      | inl e => set_current_error (Some e) initial_state
+      | inl e => set_current_error (Some e) s
       | inr content =>
         let d := match split newline content with
                  | [] => initial_text_zipper
                  | line :: lines =>
                    {| above := [] ; to_left := [] ; to_right := line ; below := lines |} end in
-        set_current_file (Some file_name) (set_document d initial_state)
+        set_current_file (Some file_name) (set_document d s)
       end in
-    w <- C.new_window ;;
-    styles <- make_styles ;;
-    C.set_window_default_style w (default_style styles) ;;
-    render w styles s ;;
+    s <- render w styles s ;;
     loop w styles s ;;
     exit w
   | _ => C.exit failure
