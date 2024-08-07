@@ -64,3 +64,17 @@ Fixpoint apply_with_sep {A : Type} (n : nat) (sep : A -> A) (f : A -> A) (a : A)
   | S O => f a
   | S ((S _) as n') => apply_with_sep n' sep f (sep (f a))
   end.
+
+Fixpoint firstn_int {A : Type} (i : int) (l : list A) : list A :=
+  if PrimInt63.leb i 0 then [] else
+  match l with
+  | [] => []
+  | x :: xs => x :: firstn_int (PrimInt63.sub i 1) xs
+  end. 
+
+Fixpoint skipn_int {A : Type} (i : int) (l : list A) : list A :=
+  if PrimInt63.leb i 0 then l else
+  match l with
+  | [] => []
+  | x :: xs => skipn_int (PrimInt63.sub i 1) xs
+  end. 
