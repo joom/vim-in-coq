@@ -421,38 +421,42 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
   C.refresh w ;;
   C.pure (set_screen_row screen_rows (set_screen_col screen_cols s)).
 
-Definition handle_movement (before after : state) : state :=
-  let '(rows, cols) := calculate_movement (document before) (document after) in
-  let '(cursor_row, cursor_col) := cursor_position (document after) in
-  let cursor_screen_row := PrimInt63.sub cursor_row (offset_row after) in
-  let cursor_screen_col := PrimInt63.sub cursor_col (offset_col after) in
+Definition int_max (x y : int) :=
+  if PrimInt63.ltb x y then y else x.
+Definition int_min (x y : int) :=
+  if PrimInt63.ltb x y then x else y.
 
-  let new_cursor_row := PrimInt63.add cursor_screen_row rows in
-  let new_cursor_col := PrimInt63.add cursor_screen_col cols in
+Definition handle_movement (before after : state) : state :=
+  let '(rows_moved, cols_moved) := calculate_movement (document before) (document after) in
+  let '(cursor_row, cursor_col) := cursor_position (document after) in
+  let screen_rows := PrimInt63.sub (screen_row after) 2%int63 in
+  let screen_cols := PrimInt63.sub (screen_col after) 0%int63 in
+
+  (* Calculate new screen positions based on movement *)
+  let new_cursor_row := PrimInt63.add cursor_row rows_moved in
+  let new_cursor_col := PrimInt63.add cursor_col cols_moved in
+
 
   (* Adjust horizontal movement *)
   let after :=
-    if signed_int_ltb new_cursor_col 0%int63 then
-      (* Cursor moved to the left past the visible screen, adjust the offset *)
-      set_offset_col (PrimInt63.add (offset_col after) cols) after
-    else if signed_int_ltb (PrimInt63.add (screen_col after) 0) new_cursor_col then
-      (* Cursor moved to the right past the visible screen, adjust the offset *)
-      set_offset_col (PrimInt63.add (offset_col after) (PrimInt63.sub new_cursor_col (screen_col after))) after
+    if signed_int_ltb new_cursor_col (offset_col after) then
+      (* Cursor moved left out of view, adjust the offset *)
+      set_offset_col (int_max (int_min new_cursor_col (PrimInt63.sub screen_cols 1)) 0) after
+    else if signed_int_ltb (PrimInt63.add (offset_col after) screen_cols) new_cursor_col then
+      (* Cursor moved right out of view, adjust the offset *)
+      set_offset_col (int_max (int_min (PrimInt63.sub new_cursor_col screen_cols) (PrimInt63.sub screen_cols 1)) 0) after
     else
-      (* Cursor is within the visible screen, update cursor position *)
       after in
 
   (* Adjust vertical movement *)
-  let screen_rows_for_doc := PrimInt63.sub (screen_row after) 3 in
   let after :=
-    if signed_int_ltb new_cursor_row 0%int63 then
-      (* Cursor moved up past the visible screen, adjust the offset *)
-      set_offset_row (PrimInt63.add (offset_row after) rows) after
-    else if signed_int_ltb screen_rows_for_doc new_cursor_row then
-      (* Cursor moved down past the visible screen, adjust the offset *)
-      set_offset_row (PrimInt63.add (offset_row after) (PrimInt63.sub new_cursor_row screen_rows_for_doc)) after
+    if signed_int_ltb new_cursor_row (offset_row after) then
+      (* Cursor moved up out of view, adjust the offset *)
+      set_offset_row (int_max (int_min new_cursor_row (PrimInt63.sub screen_rows 1)) 0) after
+    else if signed_int_ltb (PrimInt63.add (offset_row after) screen_rows) new_cursor_row then
+      (* Cursor moved down out of view, adjust the offset *)
+      set_offset_row (int_max (int_min (PrimInt63.sub new_cursor_row screen_rows) (PrimInt63.sub screen_rows 1)) 0) after
     else
-      (* Cursor is within the visible screen, update cursor position *)
       after in
 
   after.
