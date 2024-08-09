@@ -190,70 +190,6 @@ Definition set_offset_col (new : int) (s : state) : state :=
    ; offset_col := new
    |}.
 
-
-Definition shortcut_view (s : state) : nat * list shortcut_token :=
-  match shortcut s with
-  | number_token n :: l => (n, l)
-  | l => (1, l)
-  end.
-
-Definition run_shortcut (s : state) : state :=
-  match mode s , shortcut_view s with
-  | normal , (1 , [ascii_token "["; ascii_token "A"]) (* up arrow key *) =>
-    set_shortcut [] (set_document (move_up (document s)) s)
-  | normal , (1 , [ascii_token "["; ascii_token "B"]) (* down arrow key *) =>
-    set_shortcut [] (set_document (move_down (document s)) s)
-  | normal , (1 , [ascii_token "["; ascii_token "D"]) (* left arrow key *) =>
-    set_shortcut [] (set_document (move_left (document s)) s)
-  | normal , (1 , [ascii_token "["; ascii_token "C"]) (* right arrow key *) =>
-    set_shortcut [] (set_document (move_right (document s)) s)
-  | normal , (n , [ascii_token ":"]) =>
-    set_shortcut [] (set_mode (command []) s)
-  | normal , (n , [ascii_token "a"]) =>
-    set_shortcut [] (set_mode insert (set_document (move_right (document s)) s))
-  | normal , (n , [ascii_token "i"]) =>
-    set_shortcut [] (set_mode insert (set_document (document s) s))
-  | normal , (n , [ascii_token "h"]) =>
-    set_shortcut [] (set_document (apply n move_left (document s)) s)
-  | normal , (n , [ascii_token "j"]) =>
-    set_shortcut [] (set_document (apply n move_down (document s)) s)
-  | normal , (n , [ascii_token "k"]) =>
-    set_shortcut [] (set_document (apply n move_up (document s)) s)
-  | normal , (n , [ascii_token "l"]) =>
-    set_shortcut [] (set_document (apply n move_right (document s)) s)
-  | normal , (n , [ascii_token "0"]) =>
-    set_shortcut [] (set_document (move_start_of_line (document s)) s)
-  | normal , (n , [ascii_token "$"]) =>
-    set_shortcut [] (set_document (move_end_of_line (document s)) s)
-  | normal , (n , [ascii_token "g"; ascii_token "g"]) =>
-    set_shortcut [] (set_document (move_start_of_document (document s)) s)
-  | normal , (n , [ascii_token "G"]) =>
-    set_shortcut [] (set_document (move_end_of_document (document s)) s)
-  | normal , (n , [ascii_token "O"]) =>
-    set_shortcut [] (set_mode insert (set_document (insert_new_line_before (document s)) s))
-  | normal , (n , [ascii_token "o"]) =>
-    set_shortcut [] (set_mode insert (set_document (insert_new_line_after (document s)) s))
-  | normal , (n , [ascii_token "x"]) =>
-    set_shortcut [] (set_document (apply n delete_char_right (document s)) s)
-  | normal , (n , [ascii_token "d"; ascii_token "d"]) =>
-    set_shortcut [] (set_document (apply n delete_current_line (document s)) s)
-  | normal , (n , [ascii_token "r"; ascii_token c]) =>
-    set_shortcut [] (set_document (apply_with_sep n move_right (replace_char c) (document s)) s)
-  | normal , (n , [ascii_token "R"]) =>
-    set_shortcut [] (set_mode replace s)
-  | normal , (n , [ascii_token "f"; ascii_token c]) =>
-    set_shortcut [] (set_document (move_next_occurrence_on_line (Ascii.eqb c) (document s)) s)
-  | normal , (n , [ascii_token "F"; ascii_token c]) =>
-    set_shortcut [] (set_document (move_prev_occurrence_on_line (Ascii.eqb c) (document s)) s)
-  | normal , (n , [ascii_token "w"]) =>
-    set_shortcut [] (set_document (apply n move_start_of_next_word_on_line (document s)) s)
-  | normal , (n , [ascii_token "b"]) =>
-    set_shortcut [] (set_document (apply n move_start_of_prev_word_on_line (document s)) s)
-  | normal , (n , [ascii_token "e"]) =>
-    set_shortcut [] (set_document (apply n move_end_of_next_word_on_line (document s)) s)
-  | _ , (_ , _) => s
-  end.
-
 Definition save_file (s : state) : C.M unit :=
   match current_file s with
   | None => C.pure tt
@@ -264,6 +200,75 @@ Definition save_file (s : state) : C.M unit :=
 
 Definition exit (w : C.window) : C.M unit :=
   C.close_window w ;; C.exit success.
+
+Definition shortcut_view (s : state) : nat * list shortcut_token :=
+  match shortcut s with
+  | number_token n :: l => (n, l)
+  | l => (1, l)
+  end.
+
+Definition run_shortcut (w : C.window) (s : state) : C.M state :=
+  match mode s , shortcut_view s with
+  | normal , (1 , [ascii_token "["; ascii_token "A"]) (* up arrow key *) =>
+    C.pure (set_shortcut [] (set_document (move_up (document s)) s))
+  | normal , (1 , [ascii_token "["; ascii_token "B"]) (* down arrow key *) =>
+    C.pure (set_shortcut [] (set_document (move_down (document s)) s))
+  | normal , (1 , [ascii_token "["; ascii_token "D"]) (* left arrow key *) =>
+    C.pure (set_shortcut [] (set_document (move_left (document s)) s))
+  | normal , (1 , [ascii_token "["; ascii_token "C"]) (* right arrow key *) =>
+    C.pure (set_shortcut [] (set_document (move_right (document s)) s))
+  | normal , (n , [ascii_token ":"]) =>
+    C.pure (set_shortcut [] (set_mode (command []) s))
+  | normal , (n , [ascii_token "a"]) =>
+    C.pure (set_shortcut [] (set_mode insert (set_document (move_right (document s)) s)))
+  | normal , (n , [ascii_token "i"]) =>
+    C.pure (set_shortcut [] (set_mode insert (set_document (document s) s)))
+  | normal , (n , [ascii_token "h"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_left (document s)) s))
+  | normal , (n , [ascii_token "j"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_down (document s)) s))
+  | normal , (n , [ascii_token "k"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_up (document s)) s))
+  | normal , (n , [ascii_token "l"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_right (document s)) s))
+  | normal , (n , [ascii_token "0"]) =>
+    C.pure (set_shortcut [] (set_document (move_start_of_line (document s)) s))
+  | normal , (n , [ascii_token "$"]) =>
+    C.pure (set_shortcut [] (set_document (move_end_of_line (document s)) s))
+  | normal , (n , [ascii_token "g"; ascii_token "g"]) =>
+    C.pure (set_shortcut [] (set_document (move_start_of_document (document s)) s))
+  | normal , (n , [ascii_token "G"]) =>
+    C.pure (set_shortcut [] (set_document (move_end_of_document (document s)) s))
+  | normal , (n , [ascii_token "O"]) =>
+    C.pure (set_shortcut [] (set_mode insert (set_document (insert_new_line_before (document s)) s)))
+  | normal , (n , [ascii_token "o"]) =>
+    C.pure (set_shortcut [] (set_mode insert (set_document (insert_new_line_after (document s)) s)))
+  | normal , (n , [ascii_token "x"]) =>
+    C.pure (set_shortcut [] (set_document (apply n delete_char_right (document s)) s))
+  | normal , (n , [ascii_token "d"; ascii_token "d"]) =>
+    C.pure (set_shortcut [] (set_document (apply n delete_current_line (document s)) s))
+  | normal , (n , [ascii_token "g"; ascii_token "J"]) =>
+    C.pure (set_shortcut [] (set_document (apply n (join_the_line_below false) (document s)) s))
+  | normal , (n , [ascii_token "J"]) =>
+    C.pure (set_shortcut [] (set_document (apply n (join_the_line_below true) (document s)) s))
+  | normal , (n , [ascii_token "r"; ascii_token c]) =>
+    C.pure (set_shortcut [] (set_document (apply_with_sep n move_right (replace_char c) (document s)) s))
+  | normal , (n , [ascii_token "R"]) =>
+    C.pure (set_shortcut [] (set_mode replace s))
+  | normal , (n , [ascii_token "f"; ascii_token c]) =>
+    C.pure (set_shortcut [] (set_document (move_next_occurrence_on_line (Ascii.eqb c) (document s)) s))
+  | normal , (n , [ascii_token "F"; ascii_token c]) =>
+    C.pure (set_shortcut [] (set_document (move_prev_occurrence_on_line (Ascii.eqb c) (document s)) s))
+  | normal , (n , [ascii_token "w"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_start_of_next_word_on_line (document s)) s))
+  | normal , (n , [ascii_token "b"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_start_of_prev_word_on_line (document s)) s))
+  | normal , (n , [ascii_token "e"]) =>
+    C.pure (set_shortcut [] (set_document (apply n move_end_of_next_word_on_line (document s)) s))
+  | normal , (_ , [ascii_token "Z"; ascii_token "Z"]) =>
+    save_file s ;; exit w ;; C.pure s
+  | _ , (_ , _) => C.pure s
+  end.
 
 Definition run_command (w : C.window) (s : state) : C.M state :=
   match mode s with
@@ -349,15 +354,15 @@ Definition make_styles : C.M style_set :=
   normal <- C.make_style black green ;;
   insert <- C.make_style black yellow ;;
   visual <- C.make_style black magenta ;;
-  command <- C.make_style black green ;;
+  command <- C.make_style black blue ;;
   replace <- C.make_style black red ;;
-  C.pure  {| default_style := default
-           ; normal_bar_style := normal
-           ; insert_bar_style := insert
-           ; visual_bar_style := visual
-           ; command_bar_style := command
-           ; replace_bar_style := replace
-           |}.
+  C.pure {| default_style := default
+          ; normal_bar_style := normal
+          ; insert_bar_style := insert
+          ; visual_bar_style := visual
+          ; command_bar_style := command
+          ; replace_bar_style := replace
+          |}.
 
 Definition style_of_mode (styles : style_set) (m : edit_mode) : C.style :=
   match m with
@@ -427,38 +432,43 @@ Definition int_min (x y : int) :=
   if PrimInt63.ltb x y then x else y.
 
 Definition handle_movement (before after : state) : state :=
-  let '(rows_moved, cols_moved) := calculate_movement (document before) (document after) in
-  let '(cursor_row, cursor_col) := cursor_position (document after) in
-  let screen_rows := PrimInt63.sub (screen_row after) 2%int63 in
-  let screen_cols := PrimInt63.sub (screen_col after) 0%int63 in
+  (* Unpack cursor positions before and after the movement *)
+  let '(before_row, before_col) := cursor_position (document before) in
+  let '(after_row, after_col) := cursor_position (document after) in
 
-  (* Calculate new screen positions based on movement *)
-  let new_cursor_row := PrimInt63.add cursor_row rows_moved in
-  let new_cursor_col := PrimInt63.add cursor_col cols_moved in
+  (* Determine screen dimensions, accounting for UI elements *)
+  let screen_rows := PrimInt63.sub (screen_row after) 4%int63 in
+  let screen_cols := PrimInt63.sub (screen_col after) 1%int63 in
 
+  (* Calculate current cursor positions on the screen *)
+  let before_screen_row := PrimInt63.sub before_row (offset_row before) in
+  let before_screen_col := PrimInt63.sub before_col (offset_col before) in
+  let after_screen_row := PrimInt63.sub after_row (offset_row after) in
+  let after_screen_col := PrimInt63.sub after_col (offset_col after) in
 
   (* Adjust horizontal movement *)
   let after :=
-    if signed_int_ltb new_cursor_col (offset_col after) then
-      (* Cursor moved left out of view, adjust the offset *)
-      set_offset_col (int_max (int_min new_cursor_col (PrimInt63.sub screen_cols 1)) 0) after
-    else if signed_int_ltb (PrimInt63.add (offset_col after) screen_cols) new_cursor_col then
+    if signed_int_leb screen_cols after_screen_col then
       (* Cursor moved right out of view, adjust the offset *)
-      set_offset_col (int_max (int_min (PrimInt63.sub new_cursor_col screen_cols) (PrimInt63.sub screen_cols 1)) 0) after
+      set_offset_col (PrimInt63.sub after_col screen_cols) after
+    else if signed_int_leb after_screen_col 0 then
+      (* Cursor moved left out of view, adjust the offset *)
+      set_offset_col after_col after
     else
-      after in
+      (* Cursor is within bounds; only adjust if it moved left out of view *)
+      if signed_int_leb before_screen_col after_screen_col then after else after in
 
   (* Adjust vertical movement *)
   let after :=
-    if signed_int_ltb new_cursor_row (offset_row after) then
-      (* Cursor moved up out of view, adjust the offset *)
-      set_offset_row (int_max (int_min new_cursor_row (PrimInt63.sub screen_rows 1)) 0) after
-    else if signed_int_ltb (PrimInt63.add (offset_row after) screen_rows) new_cursor_row then
+    if signed_int_leb screen_rows after_screen_row then
       (* Cursor moved down out of view, adjust the offset *)
-      set_offset_row (int_max (int_min (PrimInt63.sub new_cursor_row screen_rows) (PrimInt63.sub screen_rows 1)) 0) after
+      set_offset_row (PrimInt63.sub after_row screen_rows) after
+    else if signed_int_leb after_screen_row 0 then
+      (* Cursor moved up out of view, adjust the offset *)
+      set_offset_row after_row after
     else
-      after in
-
+      (* Cursor is within bounds; only adjust if it moved up out of view *)
+      if signed_int_leb before_screen_row after_screen_row then after else after in
   after.
 
 CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
@@ -466,7 +476,7 @@ CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
   let (y, x) := cur in
   c <- C.get_char w ;;
   s <- react c w s ;;
-  let s' := run_shortcut s in
+  s' <- run_shortcut w s ;;
   let s' := handle_movement s s' in
   s' <- render w styles s' ;;
   loop w styles s'.

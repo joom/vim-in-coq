@@ -266,6 +266,16 @@ Definition delete_current_line (tz : text_zipper) : text_zipper :=
          end
   end.
 
+Definition join_the_line_below (with_space : bool) (tz : text_zipper) : text_zipper :=
+  match below tz with
+  | x :: xs => {| above := above tz
+                ; to_left := to_left tz
+                ; to_right := to_right tz ++ (if with_space then [" "] else []) ++ x
+                ; below := xs
+                |}
+  | [] => tz
+  end.
+
 Definition text_zipper_of_string (content : list ascii) : text_zipper :=
   match split newline content with
   | [] => initial_text_zipper
