@@ -45,8 +45,6 @@ Record state :=
   ; screen_col : int (* Screen size in cols *)
   ; offset_row : int (* Hide this many rows from the top of the document *)
   ; offset_col : int (* Hide this many cols from the left side of the document *)
-  ; cursor_row : int (* Where the cursor is on the screen *)
-  ; cursor_col : int (* Where the cursor is on the screen *)
   }.
 
 Definition initial_state : state :=
@@ -60,8 +58,6 @@ Definition initial_state : state :=
    ; screen_col := 0
    ; offset_row := 0
    ; offset_col := 0
-   ; cursor_row := 0
-   ; cursor_col := 0
    |}.
 
 Definition set_mode (new : edit_mode) (s : state) : state :=
@@ -75,8 +71,6 @@ Definition set_mode (new : edit_mode) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_document (new : text_zipper) (s : state) : state :=
@@ -90,8 +84,6 @@ Definition set_document (new : text_zipper) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_shortcut (new : list shortcut_token) (s : state) : state :=
@@ -105,8 +97,6 @@ Definition set_shortcut (new : list shortcut_token) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_has_changes (new : bool) (s : state) : state :=
@@ -120,8 +110,6 @@ Definition set_has_changes (new : bool) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_current_file (new : option (list ascii)) (s : state) : state :=
@@ -135,8 +123,6 @@ Definition set_current_file (new : option (list ascii)) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_current_error (new : option error) (s : state) : state :=
@@ -150,8 +136,6 @@ Definition set_current_error (new : option error) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_screen_row (new : int) (s : state) : state :=
@@ -165,8 +149,6 @@ Definition set_screen_row (new : int) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_screen_col (new : int) (s : state) : state :=
@@ -180,8 +162,6 @@ Definition set_screen_col (new : int) (s : state) : state :=
    ; screen_col := new
    ; offset_row := offset_row s
    ; offset_col := offset_row s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_offset_row (new : int) (s : state) : state :=
@@ -195,8 +175,6 @@ Definition set_offset_row (new : int) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := new
    ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
 Definition set_offset_col (new : int) (s : state) : state :=
@@ -210,39 +188,8 @@ Definition set_offset_col (new : int) (s : state) : state :=
    ; screen_col := screen_col s
    ; offset_row := offset_row s
    ; offset_col := new
-   ; cursor_row := cursor_row s
-   ; cursor_col := cursor_col s
    |}.
 
-Definition set_cursor_row (new : int) (s : state) : state :=
-  {| mode := mode s
-   ; document := document s
-   ; shortcut := shortcut s
-   ; has_changes := has_changes s
-   ; current_file := current_file s
-   ; current_error := current_error s
-   ; screen_row := screen_row s
-   ; screen_col := screen_col s
-   ; offset_row := offset_row s
-   ; offset_col := offset_col s
-   ; cursor_row := new
-   ; cursor_col := cursor_col s
-   |}.
-
-Definition set_cursor_col (new : int) (s : state) : state :=
-  {| mode := mode s
-   ; document := document s
-   ; shortcut := shortcut s
-   ; has_changes := has_changes s
-   ; current_file := current_file s
-   ; current_error := current_error s
-   ; screen_row := screen_row s
-   ; screen_col := screen_col s
-   ; offset_row := offset_row s
-   ; offset_col := offset_col s
-   ; cursor_row := cursor_row s
-   ; cursor_col := new
-   |}.
 
 Definition shortcut_view (s : state) : nat * list shortcut_token :=
   match shortcut s with
@@ -427,6 +374,11 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
   let '(screen_rows, screen_cols) := size in
   let screen_rows_for_document := PrimInt63.sub screen_rows 3 in
 
+   (* Adjust cursor position relative to the screen *)
+  let '(cursor_row, cursor_col) := cursor_position (document s) in
+  let cursor_screen_row := PrimInt63.sub cursor_row (offset_row s) in
+  let cursor_screen_col := PrimInt63.sub cursor_col (offset_col s) in
+
   (* Render bottom line for the mode *)
   C.move_cursor w (sub screen_rows 2) 0 ;;
   let mode_style := style_of_mode styles (mode s) in
@@ -461,31 +413,50 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
       C.print w (firstn_int screen_cols (skipn_int (offset_col s) x)) ;;
       render_line xs (PrimInt63.add row 1)
     end in
+
   let lines_to_show := firstn_int screen_rows_for_document
                          (skipn_int (offset_row s) (lines (document s))) in
   render_line lines_to_show 0%int63 ;;
-  C.move_cursor w (cursor_row s) (cursor_col s) ;;
+  C.move_cursor w cursor_screen_row cursor_screen_col ;;
   C.refresh w ;;
   C.pure (set_screen_row screen_rows (set_screen_col screen_cols s)).
 
-(* FIXME this function is currently wrong *)
 Definition handle_movement (before after : state) : state :=
   let '(rows, cols) := calculate_movement (document before) (document after) in
+  let '(cursor_row, cursor_col) := cursor_position (document after) in
+  let cursor_screen_row := PrimInt63.sub cursor_row (offset_row after) in
+  let cursor_screen_col := PrimInt63.sub cursor_col (offset_col after) in
+
+  let new_cursor_row := PrimInt63.add cursor_screen_row rows in
+  let new_cursor_col := PrimInt63.add cursor_screen_col cols in
+
+  (* Adjust horizontal movement *)
   let after :=
-    if (signed_int_ltb (PrimInt63.add (cursor_col after) cols) 0%int63)
-    then set_offset_col (PrimInt63.add (offset_col after) cols) after
-    else if (signed_int_ltb (screen_col after) (PrimInt63.add (cursor_col after) cols))
-    then set_offset_col (PrimInt63.add (offset_col after) cols) after
-    else set_cursor_col (PrimInt63.add (cursor_col after) cols) after in
+    if signed_int_ltb new_cursor_col 0%int63 then
+      (* Cursor moved to the left past the visible screen, adjust the offset *)
+      set_offset_col (PrimInt63.add (offset_col after) cols) after
+    else if signed_int_ltb (PrimInt63.add (screen_col after) 0) new_cursor_col then
+      (* Cursor moved to the right past the visible screen, adjust the offset *)
+      set_offset_col (PrimInt63.add (offset_col after) (PrimInt63.sub new_cursor_col (screen_col after))) after
+    else
+      (* Cursor is within the visible screen, update cursor position *)
+      after in
+
+  (* Adjust vertical movement *)
   let screen_rows_for_doc := PrimInt63.sub (screen_row after) 3 in
   let after :=
-    if (signed_int_ltb (PrimInt63.add (cursor_row after) rows) 0%int63)
-    then set_offset_row (PrimInt63.add (offset_row after) rows) after
-    else if (signed_int_ltb screen_rows_for_doc (PrimInt63.add (cursor_row after) rows))
-    then set_offset_row (PrimInt63.add (offset_row after) rows) after
-    else set_cursor_row (PrimInt63.add (cursor_row after) rows) after in
+    if signed_int_ltb new_cursor_row 0%int63 then
+      (* Cursor moved up past the visible screen, adjust the offset *)
+      set_offset_row (PrimInt63.add (offset_row after) rows) after
+    else if signed_int_ltb screen_rows_for_doc new_cursor_row then
+      (* Cursor moved down past the visible screen, adjust the offset *)
+      set_offset_row (PrimInt63.add (offset_row after) (PrimInt63.sub new_cursor_row screen_rows_for_doc)) after
+    else
+      (* Cursor is within the visible screen, update cursor position *)
+      after in
+
   after.
-  
+
 CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
