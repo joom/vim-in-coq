@@ -76,6 +76,22 @@ value myfunc(struct thread_info *tinfo, ...other args...) {
   tinfo->fp=__FRAME__.prev, __RTEMP__)
 /* END OF STUFF TO BE MOVED INTO gc_stack.h */
 
+value signed_int_ltb(value x, value y) {
+  if ((((signed long long) x) >> 1) < (((signed long long) y) >> 1)) {
+    return make_Coq_Init_Datatypes_bool_true();
+  } else {
+    return make_Coq_Init_Datatypes_bool_false();
+  }
+}
+
+value signed_int_leb(value x, value y) {
+  if ((((signed long long) x) >> 1) <= (((signed long long) y) >> 1)) {
+    return make_Coq_Init_Datatypes_bool_true();
+  } else {
+    return make_Coq_Init_Datatypes_bool_false();
+  }
+}
+
 typedef enum { XI, XO, XH } tag_positive;
 // not very space efficient but it should be easy to prove
 value int_of_positive(value p) {
@@ -121,6 +137,42 @@ value n_of_int(struct thread_info *tinfo, value t) {
   }
   return alloc_make_Coq_Numbers_BinNums_N_Npos(tinfo, temp);
 }
+
+typedef enum { Z0, ZPOS, ZNEG } tag_Z;
+value int_of_z(value z) {
+  switch (get_Coq_Numbers_BinNums_Z_tag(z)) {
+    case Z0:
+      return 0;
+    case ZPOS:
+      return int_of_positive(get_args(z)[0]);
+    case ZNEG:
+      return -int_of_positive(get_args(z)[0]);
+  }
+}
+
+value z_of_int(struct thread_info *tinfo, value t) {
+  if (t == 1) {
+    return make_Coq_Numbers_BinNums_Z_Z0();
+  }
+  value temp = 0;
+  // loop over bits from left (most significant) to right (least significant)
+  // ignore the last bit, hence i > 0, not i >= 0
+  for (unsigned int i = sizeof(value) * 8 - 1; i > 0; i--) {
+    _Bool bit = (t & (1 << i)) >> i;
+    if (bit) {
+      if (temp) {
+        temp = alloc_make_Coq_Numbers_BinNums_positive_xI(tinfo, temp);
+      } else {
+        temp = make_Coq_Numbers_BinNums_positive_xH();
+      }
+    } else if (temp) {
+      temp = alloc_make_Coq_Numbers_BinNums_positive_xO(tinfo, temp);
+    }
+    // ignore the 0 bits before the first significant 1
+  }
+  return alloc_make_Coq_Numbers_BinNums_N_Npos(tinfo, temp);
+}
+
 
 unsigned char c_char_of_coq_ascii(value x) {
   unsigned char c = 0;

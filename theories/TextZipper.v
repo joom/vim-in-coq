@@ -1,4 +1,4 @@
-Require Import PrimInt63 Ascii List.
+Require Import PrimInt63 Ascii ZArith List.
 Require Import Vim.Helpers.
 
 Import ListNotations.
@@ -138,6 +138,28 @@ Definition move_end_of_line (tz : text_zipper) : text_zipper :=
    ; to_right := []
    ; below := below tz
    |}.
+
+Definition move_start_of_document (tz : text_zipper) : text_zipper :=
+  match above tz with
+  | x :: xs => 
+    {| above := []
+     ; to_left := []
+     ; to_right := x
+     ; below := xs ++ [current_line tz] ++ below tz
+     |}
+  | [] => move_start_of_line tz
+  end.
+
+Definition move_end_of_document (tz : text_zipper) : text_zipper :=
+  match rev (below tz) with
+  | x :: xs => 
+    {| above := above tz ++ [current_line tz] ++ rev xs
+     ; to_left := []
+     ; to_right := x
+     ; below := []
+     |}
+  | [] => move_start_of_line tz
+  end.
 
 Definition move_next_occurrence_on_line (p : ascii -> bool) (tz : text_zipper) : text_zipper :=
   match peek_under_cursor tz, break p (tail (to_right tz)) with

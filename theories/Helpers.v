@@ -65,6 +65,12 @@ Fixpoint length_N {A : Type} (l : list A) : N :=
   | _ :: l' => N.succ (length_N l')
   end.
 
+Fixpoint length_Z {A : Type} (l : list A) : Z :=
+  match l with
+  | [] => Z0
+  | _ :: l' => BinInt.Z.succ (length_Z l')
+  end.
+
 Fixpoint length_int {A : Type} (l : list A) : int :=
   match l with
   | [] => 0%int63

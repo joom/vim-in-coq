@@ -1,15 +1,24 @@
 From CertiCoq.Plugin Require Import CertiCoq.
-Require Import PrimInt63 NArith Ascii.
+Require Import PrimInt63 NArith ZArith Ascii.
 
 Require Import Vim.Errors.
 
+Axiom signed_int_ltb : int -> int -> bool.
+Axiom signed_int_leb : int -> int -> bool.
+
 Axiom N_of_int : int -> N.
 Axiom int_of_N : N -> int.
+Axiom Z_of_int : int -> Z.
+Axiom int_of_Z : Z -> int.
 
-CertiCoq Register [
-    N_of_int => "n_of_int" with tinfo,
-    int_of_N => "int_of_n" ]
-  Include [ "foreign.h" ].
+CertiCoq Register
+  [ signed_int_ltb => "signed_int_ltb"
+  , signed_int_leb => "signed_int_leb"
+  , N_of_int => "n_of_int" with tinfo
+  , int_of_N => "int_of_n"
+  , Z_of_int => "z_of_int" with tinfo
+  , int_of_Z => "int_of_z"
+  ] Include [ "foreign.h" ].
 
 Definition ascii_of_int (i : int) : ascii := ascii_of_N (N_of_int i).
 Definition int_of_ascii (a : ascii) : int := int_of_N (N_of_ascii a).

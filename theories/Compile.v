@@ -1,6 +1,6 @@
 From CertiCoq.Plugin Require Import CertiCoq.
 
-Require Import PrimInt63 NArith Ascii String.
+Require Import PrimInt63 NArith ZArith Ascii String.
 
 Require Import Vim.Errors
                Vim.Program
@@ -18,4 +18,5 @@ CertiCoq Generate Glue -file "glue"
   , N
   , option
   , sum
+  , Z
   ].

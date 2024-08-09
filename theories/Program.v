@@ -1,4 +1,4 @@
-Require Import PrimInt63 Ascii List.
+Require Import PrimInt63 ZArith Ascii List.
 
 Require Import Vim.Helpers
                Vim.Errors
@@ -278,6 +278,10 @@ Definition run_shortcut (s : state) : state :=
     set_shortcut [] (set_document (move_start_of_line (document s)) s)
   | normal , (n , [ascii_token "$"]) =>
     set_shortcut [] (set_document (move_end_of_line (document s)) s)
+  | normal , (n , [ascii_token "g"; ascii_token "g"]) =>
+    set_shortcut [] (set_document (move_start_of_document (document s)) s)
+  | normal , (n , [ascii_token "G"]) =>
+    set_shortcut [] (set_document (move_end_of_document (document s)) s)
   | normal , (n , [ascii_token "O"]) =>
     set_shortcut [] (set_mode insert (set_document (insert_new_line_before (document s)) s))
   | normal , (n , [ascii_token "o"]) =>
@@ -369,6 +373,8 @@ Definition react (c : int) (w : C.window) (s : state) : C.M state :=
          C.pure (set_mode normal s')
     else if PrimInt63.eqb 27 c (* ESC *)
     then C.pure (set_mode normal s)
+    else if orb (PrimInt63.eqb c 8 (* backspace *)) (PrimInt63.eqb c 127 (* delete *))
+    then C.pure (set_mode (match l with [] => normal | _ => command (rev (tail (rev l))) end) s)
     else if andb (PrimInt63.leb 32 c) (PrimInt63.leb c 126)
     then C.pure (set_mode (command (l ++ [ascii_of_int c])) s)
     else C.pure s
@@ -446,39 +452,40 @@ Definition render (w : C.window) (styles : style_set) (s : state)  : C.M state :
 
   (* Render document *)
   let fix render_line
-          (l : list (list ascii)) (row : int)
-          (offset_row : int) (screen_row : int) : C.M unit :=
-    if PrimInt63.leb screen_row 0 then C.pure tt else
+          (l : list (list ascii)) (row : int) : C.M unit :=
     match l with
     | [] =>
       C.pure tt
     | x :: xs =>
-      if PrimInt63.leb offset_row 0
-      then C.move_cursor w row 0 ;;
-           C.print w (firstn_int screen_cols (skipn_int (offset_col s) x)) ;;
-           render_line xs (add row 1) 0%int63 (sub screen_row 1)
-      else render_line xs (add row 1) (sub offset_row 1) screen_row
+      C.move_cursor w row 0 ;;
+      C.print w (firstn_int screen_cols (skipn_int (offset_col s) x)) ;;
+      render_line xs (PrimInt63.add row 1)
     end in
-  render_line (lines (document s)) 0%int63 (offset_row s) screen_rows_for_document ;;
+  let lines_to_show := firstn_int screen_rows_for_document
+                         (skipn_int (offset_row s) (lines (document s))) in
+  render_line lines_to_show 0%int63 ;;
   C.move_cursor w (cursor_row s) (cursor_col s) ;;
   C.refresh w ;;
   C.pure (set_screen_row screen_rows (set_screen_col screen_cols s)).
 
+(* FIXME this function is currently wrong *)
 Definition handle_movement (before after : state) : state :=
   let '(rows, cols) := calculate_movement (document before) (document after) in
-  let after := if PrimInt63.leb (PrimInt63.add (cursor_col after) cols) 0%int63
-               then set_offset_col (PrimInt63.sub (offset_col after) cols) after
-               else if PrimInt63.leb (screen_col after) (PrimInt63.add (cursor_col after) cols)
-               then set_offset_col (PrimInt63.sub (offset_col after) cols) after
-               else set_cursor_col (PrimInt63.add (cursor_col after) cols) after in
-  let screen_rows_for_document := PrimInt63.sub (screen_row after) 3 in
-  let after := if PrimInt63.leb (PrimInt63.add (cursor_row after) rows) 0%int63
-               then set_offset_row (PrimInt63.sub (offset_row after) rows) after
-               else if PrimInt63.leb screen_rows_for_document (PrimInt63.add (cursor_row after) rows)
-               then set_offset_row (PrimInt63.sub (offset_row after) rows) after
-               else set_cursor_row (PrimInt63.add (cursor_row after) rows) after in
+  let after :=
+    if (signed_int_ltb (PrimInt63.add (cursor_col after) cols) 0%int63)
+    then set_offset_col (PrimInt63.add (offset_col after) cols) after
+    else if (signed_int_ltb (screen_col after) (PrimInt63.add (cursor_col after) cols))
+    then set_offset_col (PrimInt63.add (offset_col after) cols) after
+    else set_cursor_col (PrimInt63.add (cursor_col after) cols) after in
+  let screen_rows_for_doc := PrimInt63.sub (screen_row after) 3 in
+  let after :=
+    if (signed_int_ltb (PrimInt63.add (cursor_row after) rows) 0%int63)
+    then set_offset_row (PrimInt63.add (offset_row after) rows) after
+    else if (signed_int_ltb screen_rows_for_doc (PrimInt63.add (cursor_row after) rows))
+    then set_offset_row (PrimInt63.add (offset_row after) rows) after
+    else set_cursor_row (PrimInt63.add (cursor_row after) rows) after in
   after.
-
+  
 CoFixpoint loop (w : C.window) (styles : style_set) (s : state) : C.M unit :=
   cur <- C.get_cursor w ;;
   let (y, x) := cur in
